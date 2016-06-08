@@ -6172,8 +6172,8 @@
 
                 // Register the callbacks and add the callbackId to the positional
                 // arguments if given.
+                callbackId = service + cordova.callbackId++;
                 if (successCallback || failCallback) {
-                    callbackId = service + cordova.callbackId++;
                     cordova.callbacks[callbackId] = {
                         success: successCallback,
                         fail: failCallback
