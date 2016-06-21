@@ -604,6 +604,26 @@
             App.prototype.getMeta = function(successCallback, errorCallback) {                
                 exec(successCallback, errorCallback, "DronaHQ", "getApplicationDetails", []);
             }
+			
+			App.prototype.getApp = function(successCallback, errorCallback) {                
+                exec(successCallback, errorCallback, "DHQApp", "getAppDetails", []);
+            }
+			
+			App.prototype.setRating = function(successCallback, errorCallback, appRating) {                
+                exec(successCallback, errorCallback, "DHQApp", "setAppRating", [appRating]);
+            }
+			
+			App.prototype.setAsFav = function(successCallback, errorCallback, isFav) {                
+                exec(successCallback, errorCallback, "DHQApp", "setAppAsFav", [isFav]);
+            }
+			
+			App.prototype.getFeedback = function(successCallback, errorCallback, maxId, resultSize) {                
+                exec(successCallback, errorCallback, "DHQApp", "getAppFeedbackList", [maxId, resultSize]);
+            }
+			
+            App.prototype.setFeedback = function(successCallback, errorCallback, feedbackText) {                
+                exec(successCallback, errorCallback, "DHQApp", "setAppFeedback", [feedbackText]);
+            }
 
             module.exports = new App();
         });
@@ -5660,11 +5680,11 @@
             if(DronaHQ.plugins.keyboard){
                 if(DronaHQ.onIos){
                     arrPluginList = arrPluginList.concat(arrKeyboardIOS);
-                    arrPluginMeta["ionic-plugin-keyboard"] = "2.0.1";
+                    objPluginMeta["ionic-plugin-keyboard"] = "2.0.1";
                 }
                 if(DronaHQ.onAndroid){
                     arrPluginList = arrPluginList.concat(arrKeyboardAndroid);
-                    arrPluginMeta["ionic-plugin-keyboard"] = "2.0.1";
+                    objPluginMeta["ionic-plugin-keyboard"] = "2.0.1";
                 }
             }
 
