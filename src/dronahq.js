@@ -588,9 +588,17 @@
 
             function App() { };
 
-            App.prototype.navigate = function (destination, successCallback, errorCallback) {
-                argscheck.checkArgs('sfF', 'DronaHQ.navigate()', arguments);
-                exec(successCallback, errorCallback, "DronaHQ", "navigate", [destination]);
+            App.prototype.navigate = function (objNavigate) {
+                argscheck.checkArgs('o', 'DronaHQ.navigate()', arguments);
+                
+                var destination = objNavigate.dest || '';
+                var destId = objNavigate.dest_id || '0';
+                var folderCatId = objNavigate.folder_id || '0';
+                var destType = objNavigate.dest_type || '';
+                
+                var args = [destination, destId, destType, folderCatId];
+                
+                exec(null, null, "DronaHQ", "navigation", args);
             };
 
             App.prototype.exitApp = function () {
