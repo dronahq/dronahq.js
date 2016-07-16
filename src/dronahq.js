@@ -1,4 +1,5 @@
 /*
+	DronaHQ Native Container SDK - v6.2
 */
 
 ; (function () {
@@ -21,7 +22,9 @@
         filetransfer: true,
         geo: false,  //We only need this on iOS,
         sqlite: true,
-        keyboard: false
+        keyboard: false,
+        kvstorage: true,
+        localnotification: true
     };
 
     /*jshint -W079 */
@@ -590,14 +593,14 @@
 
             App.prototype.navigate = function (objNavigate) {
                 argscheck.checkArgs('o', 'DronaHQ.navigate()', arguments);
-                
+
                 var destination = objNavigate.dest || '';
                 var destId = objNavigate.dest_id || '0';
                 var folderCatId = objNavigate.folder_id || '0';
                 var destType = objNavigate.dest_type || '';
-                
+
                 var args = [destination, destId, destType, folderCatId];
-                
+
                 exec(null, null, "DronaHQ", "navigation", args);
             };
 
@@ -605,11 +608,11 @@
                 exec(null, null, "DronaHQ", "exitApp", []);
             };
 
-            App.prototype.getHomeScreen = function (successCallback, errorCallback) {                
+            App.prototype.getHomeScreen = function (successCallback, errorCallback) {
                 exec(successCallback, errorCallback, "DronaHQ", "getHomeScreenIcons", []);
             }
 
-            App.prototype.getMeta = function(successCallback, errorCallback) {                
+            App.prototype.getMeta = function (successCallback, errorCallback) {
                 exec(successCallback, errorCallback, "DronaHQ", "getApplicationDetails", []);
             }
 			
@@ -654,9 +657,17 @@
                 exec(successCallback, errorCallback, "DronaHQ", "downloadSync", [remoteUrl, saveUrl]);
             };
 
-            Sync.prototype.upload = function (remoteUrl, requestMethod, requestData, imageLocalPath, successCallback, errorCallback) {
+            Sync.prototype.upload = function (remoteUrl, requestMethod, requestData, imageLocalPath, options, successCallback, errorCallback) {
                 imageLocalPath = imageLocalPath || '';
-                exec(successCallback, errorCallback, "DronaHQ", "uploadRequest", [remoteUrl, requestMethod, requestData, imageLocalPath]);
+
+                var reqHeader =  [];
+                var timeout = 0;
+                if (options) {
+                    reqHeader = options.header || [];
+                    timeout = options.timeout || 0;
+                }
+
+                exec(successCallback, errorCallback, "DronaHQ", "uploadRequest", [remoteUrl, requestMethod, requestData, imageLocalPath, reqHeader, timeout]);
             };
 
             Sync.prototype.refresh = function (refreshType) {
@@ -669,6 +680,39 @@
             };
 
             module.exports = new Sync();
+        });
+
+        //DronaHQ KVStore
+        cordova.define("cordova-plugin-dronahq.kvstore", function (require, exports, module) {
+            var argscheck = require('cordova/argscheck'),
+              channel = require('cordova/channel'),
+              utils = require('cordova/utils'),
+              exec = require('cordova/exec'),
+              cordova = require('cordova');
+
+            function KVStore() { };
+
+            KVStore.prototype.getItem = function (keyName, fnSuccess, fnError) {
+                argscheck.checkArgs('sFF', 'KVStore.getItem', arguments);
+                exec(fnSuccess, fnError, "DHQStorage", "get", [keyName]);
+            };
+
+            KVStore.prototype.setItem = function (keyName, keyValue, fnSuccess, fnError) {
+                argscheck.checkArgs('sSFF', 'KVStore.setItem', arguments);
+                exec(fnSuccess, fnError, "DHQStorage", "set", [keyName, keyValue]);
+            };
+
+            KVStore.prototype.removeItem = function (keyName, fnSuccess, fnError) {
+                argscheck.checkArgs('sFF', 'KVStore.removeItem', arguments);
+                exec(fnSuccess, fnError, "DHQStorage", "remove", [keyName]);
+            };
+
+            KVStore.prototype.clear = function (fnSuccess, fnError) {
+                argscheck.checkArgs('fF', 'KVStore.clear', arguments);
+                exec(fnSuccess, fnError, "DHQStorage", "clearAll", []);
+            };
+
+            module.exports = new KVStore();
         });
 
         //File
@@ -939,25 +983,25 @@
         });
         cordova.define("cordova-plugin-file.Entry", function (require, exports, module) {
             /*
- *
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
-*/
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+             */
 
             var argscheck = require('cordova/argscheck'),
               exec = require('cordova/exec'),
@@ -1210,26 +1254,27 @@
             module.exports = Entry;
 
         });
-        cordova.define("cordova-plugin-file.File", function (require, exports, module) { /*
- *
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
-*/
+        cordova.define("cordova-plugin-file.File", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+             */
 
             /**
              * Constructor.
@@ -1291,26 +1336,27 @@
             module.exports = File;
 
         });
-        cordova.define("cordova-plugin-file.FileEntry", function (require, exports, module) { /*
- *
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
-*/
+        cordova.define("cordova-plugin-file.FileEntry", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
 
             var utils = require('cordova/utils'),
               exec = require('cordova/exec'),
@@ -1422,26 +1468,27 @@
             module.exports = FileError;
 
         });
-        cordova.define("cordova-plugin-file.FileReader", function (require, exports, module) { /*
- *
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
-*/
+        cordova.define("cordova-plugin-file.FileReader", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
 
             var exec = require('cordova/exec'),
               modulemapper = require('cordova/modulemapper'),
@@ -2170,25 +2217,25 @@
         });
         cordova.define("cordova-plugin-file.FileWriter", function (require, exports, module) {
             /*
- *
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
-*/
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
 
             var exec = require('cordova/exec'),
                 FileError = require('./FileError'),
@@ -2647,26 +2694,27 @@
             module.exports = ProgressEvent;
 
         });
-        cordova.define("cordova-plugin-file.requestFileSystem", function (require, exports, module) { /*
- *
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
-*/
+        cordova.define("cordova-plugin-file.requestFileSystem", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
 
             //For browser platform: not all browsers use this file.
             function checkBrowser() {
@@ -4097,35 +4145,35 @@
 
             }).call(this);
         });
-        
+
         //Ionic Keyboard
         //https://github.com/driftyco/ionic-plugin-keyboard
-        cordova.define("ionic-plugin-keyboard.iOS", function(require, exports, module){
+        cordova.define("ionic-plugin-keyboard.iOS", function (require, exports, module) {
             var argscheck = require('cordova/argscheck'),
                 utils = require('cordova/utils'),
                 exec = require('cordova/exec');
 
 
-            var Keyboard = function() {
+            var Keyboard = function () {
             };
 
-            Keyboard.hideKeyboardAccessoryBar = function(hide) {
+            Keyboard.hideKeyboardAccessoryBar = function (hide) {
                 // exec(null, null, "Keyboard", "hideKeyboardAccessoryBar", [hide]);
                 console.warn('hideKeyboardAccessoryBar has been removed until a method is found that doesn\'t get rejected from the App Store.')
             };
 
-            Keyboard.close = function() {
+            Keyboard.close = function () {
                 exec(null, null, "Keyboard", "close", []);
             };
 
-            Keyboard.show = function() {
+            Keyboard.show = function () {
                 console.warn('Showing keyboard not supported in iOS due to platform limitations.')
                 console.warn('Instead, use input.focus(), and ensure that you have the following setting in your config.xml: \n');
                 console.warn('    <preference name="KeyboardDisplayRequiresUserAction" value="false"/>\n');
                 // exec(null, null, "Keyboard", "show", []);
             };
 
-            Keyboard.disableScroll = function(disable) {
+            Keyboard.disableScroll = function (disable) {
                 exec(null, null, "Keyboard", "disableScroll", [disable]);
             };
 
@@ -4139,30 +4187,30 @@
 
             module.exports = Keyboard;
         });
-        
-        cordova.define("ionic-plugin-keyboard.Android", function(require, exports, module){
+
+        cordova.define("ionic-plugin-keyboard.Android", function (require, exports, module) {
             var argscheck = require('cordova/argscheck'),
                 utils = require('cordova/utils'),
                 exec = require('cordova/exec'),
                 channel = require('cordova/channel');
 
 
-            var Keyboard = function() {
+            var Keyboard = function () {
             };
 
-            Keyboard.hideKeyboardAccessoryBar = function(hide) {
+            Keyboard.hideKeyboardAccessoryBar = function (hide) {
                 exec(null, null, "Keyboard", "hideKeyboardAccessoryBar", [hide]);
             };
 
-            Keyboard.close = function() {	
+            Keyboard.close = function () {
                 exec(null, null, "Keyboard", "close", []);
             };
 
-            Keyboard.show = function() {
+            Keyboard.show = function () {
                 exec(null, null, "Keyboard", "show", []);
             };
 
-            Keyboard.disableScroll = function(disable) {
+            Keyboard.disableScroll = function (disable) {
                 exec(null, null, "Keyboard", "disableScroll", [disable]);
             };
 
@@ -4174,19 +4222,19 @@
 
             Keyboard.isVisible = false;
 
-            channel.onCordovaReady.subscribe(function() {
+            channel.onCordovaReady.subscribe(function () {
                 exec(success, null, 'Keyboard', 'init', []);
 
                 function success(msg) {
                     var action = msg.charAt(0);
-                    if ( action === 'S' ) {
+                    if (action === 'S') {
                         var keyboardHeight = msg.substr(1);
                         cordova.plugins.Keyboard.isVisible = true;
-                        cordova.fireWindowEvent('native.keyboardshow', { 'keyboardHeight': + keyboardHeight });
+                        cordova.fireWindowEvent('native.keyboardshow', { 'keyboardHeight': +keyboardHeight });
 
                         //deprecated
-                        cordova.fireWindowEvent('native.showkeyboard', { 'keyboardHeight': + keyboardHeight });
-                    } else if ( action === 'H' ) {
+                        cordova.fireWindowEvent('native.showkeyboard', { 'keyboardHeight': +keyboardHeight });
+                    } else if (action === 'H') {
                         cordova.plugins.Keyboard.isVisible = false;
                         cordova.fireWindowEvent('native.keyboardhide');
 
@@ -4198,6 +4246,1214 @@
 
             module.exports = Keyboard;
         });
+
+        //Local notification: https://github.com/katzer/cordova-plugin-local-notifications
+        cordova.define("de.appplant.cordova.plugin.local-notification.LocalNotification", function (require, exports, module) {
+            /*
+             * Copyright (c) 2013-2015 by appPlant UG. All rights reserved.
+             *
+             * @APPPLANT_LICENSE_HEADER_START@
+             *
+             * This file contains Original Code and/or Modifications of Original Code
+             * as defined in and that are subject to the Apache License
+             * Version 2.0 (the 'License'). You may not use this file except in
+             * compliance with the License. Please obtain a copy of the License at
+             * http://opensource.org/licenses/Apache-2.0/ and read it before using this
+             * file.
+             *
+             * The Original Code and all software distributed under the License are
+             * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+             * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+             * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+             * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+             * Please see the License for the specific language governing rights and
+             * limitations under the License.
+             *
+             * @APPPLANT_LICENSE_HEADER_END@
+             */
+
+
+            /*************
+             * INTERFACE *
+             *************/
+
+            /**
+             * Returns the default settings.
+             *
+             * @return {Object}
+             */
+            exports.getDefaults = function () {
+                return this.core.getDefaults();
+            };
+
+            /**
+             * Overwrite default settings.
+             *
+             * @param {Object} defaults
+             */
+            exports.setDefaults = function (defaults) {
+                this.core.setDefaults(defaults);
+            };
+
+            /**
+             * Schedule a new local notification.
+             *
+             * @param {Object} notifications
+             *      The notification properties
+             * @param {Function} callback
+             *      A function to be called after the notification has been canceled
+             * @param {Object?} scope
+             *      The scope for the callback function
+             * @param {Object?} args
+             *      skipPermission:true schedules the notifications immediatly without
+             *                          registering or checking for permission
+             */
+            exports.schedule = function (notifications, callback, scope, args) {
+                this.core.schedule(notifications, callback, scope, args);
+            };
+
+            /**
+             * Update existing notifications specified by IDs in options.
+             *
+             * @param {Object} notifications
+             *      The notification properties to update
+             * @param {Function} callback
+             *      A function to be called after the notification has been updated
+             * @param {Object?} scope
+             *      The scope for the callback function
+             * @param {Object?} args
+             *      skipPermission:true schedules the notifications immediatly without
+             *                          registering or checking for permission
+             */
+            exports.update = function (notifications, callback, scope, args) {
+                this.core.update(notifications, callback, scope, args);
+            };
+
+            /**
+             * Clear the specified notification.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A function to be called after the notification has been cleared
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.clear = function (ids, callback, scope) {
+                this.core.clear(ids, callback, scope);
+            };
+
+            /**
+             * Clear all previously sheduled notifications.
+             *
+             * @param {Function} callback
+             *      A function to be called after all notifications have been cleared
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.clearAll = function (callback, scope) {
+                this.core.clearAll(callback, scope);
+            };
+
+            /**
+             * Cancel the specified notifications.
+             *
+             * @param {String[]} ids
+             *      The IDs of the notifications
+             * @param {Function} callback
+             *      A function to be called after the notifications has been canceled
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.cancel = function (ids, callback, scope) {
+                this.core.cancel(ids, callback, scope);
+            };
+
+            /**
+             * Remove all previously registered notifications.
+             *
+             * @param {Function} callback
+             *      A function to be called after all notifications have been canceled
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.cancelAll = function (callback, scope) {
+                this.core.cancelAll(callback, scope);
+            };
+
+            /**
+             * Check if a notification with an ID is present.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.isPresent = function (id, callback, scope) {
+                this.core.isPresent(id, callback, scope);
+            };
+
+            /**
+             * Check if a notification with an ID is scheduled.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.isScheduled = function (id, callback, scope) {
+                this.core.isScheduled(id, callback, scope);
+            };
+
+            /**
+             * Check if a notification with an ID was triggered.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.isTriggered = function (id, callback, scope) {
+                this.core.isTriggered(id, callback, scope);
+            };
+
+            /**
+             * List all local notification IDs.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAllIds = function (callback, scope) {
+                this.core.getAllIds(callback, scope);
+            };
+
+            /**
+             * Alias for `getAllIds`.
+             */
+            exports.getIds = function () {
+                this.getAllIds.apply(this, arguments);
+            };
+
+            /**
+             * List all scheduled notification IDs.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getScheduledIds = function (callback, scope) {
+                this.core.getScheduledIds(callback, scope);
+            };
+
+            /**
+             * List all triggered notification IDs.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getTriggeredIds = function (callback, scope) {
+                this.core.getTriggeredIds(callback, scope);
+            };
+
+            /**
+             * Property list for given local notifications.
+             * If called without IDs, all notification will be returned.
+             *
+             * @param {Number[]?} ids
+             *      Set of notification IDs
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.get = function () {
+                this.core.get.apply(this.core, arguments);
+            };
+
+            /**
+             * Property list for all local notifications.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAll = function (callback, scope) {
+                this.core.getAll(callback, scope);
+            };
+
+            /**
+             * Property list for given scheduled notifications.
+             * If called without IDs, all notification will be returned.
+             *
+             * @param {Number[]?} ids
+             *      Set of notification IDs
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getScheduled = function () {
+                this.core.getScheduled.apply(this.core, arguments);
+            };
+
+            /**
+             * Property list for all scheduled notifications.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAllScheduled = function (callback, scope) {
+                this.core.getAllScheduled(callback, scope);
+            };
+
+            /**
+             * Property list for given triggered notifications.
+             * If called without IDs, all notification will be returned.
+             *
+             * @param {Number[]?} ids
+             *      Set of notification IDs
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getTriggered = function () {
+                this.core.getTriggered.apply(this.core, arguments);
+            };
+
+            /**
+             * Property list for all triggered notifications.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAllTriggered = function (callback, scope) {
+                this.core.getAllTriggered(callback, scope);
+            };
+
+            /**
+             * Informs if the app has the permission to show notifications.
+             *
+             * @param {Function} callback
+             *      The function to be exec as the callback
+             * @param {Object?} scope
+             *      The callback function's scope
+             */
+            exports.hasPermission = function (callback, scope) {
+                this.core.hasPermission(callback, scope);
+            };
+
+            /**
+             * Register permission to show notifications if not already granted.
+             *
+             * @param {Function} callback
+             *      The function to be exec as the callback
+             * @param {Object?} scope
+             *      The callback function's scope
+             */
+            exports.registerPermission = function (callback, scope) {
+                this.core.registerPermission(callback, scope);
+            };
+
+
+            /****************
+             * DEPRECATIONS *
+             ****************/
+
+            /**
+             * Schedule a new local notification.
+             */
+            exports.add = function () {
+                console.warn('Depreated: Please use `notification.local.schedule` instead.');
+
+                this.schedule.apply(this, arguments);
+            };
+
+            /**
+             * Register permission to show notifications
+             * if not already granted.
+             */
+            exports.promptForPermission = function () {
+                console.warn('Depreated: Please use `notification.local.registerPermission` instead.');
+
+                this.registerPermission.apply(this, arguments);
+            };
+
+
+            /**********
+             * EVENTS *
+             **********/
+
+            /**
+             * Register callback for given event.
+             *
+             * @param {String} event
+             *      The event's name
+             * @param {Function} callback
+             *      The function to be exec as callback
+             * @param {Object?} scope
+             *      The callback function's scope
+             */
+            exports.on = function (event, callback, scope) {
+                this.core.on(event, callback, scope);
+            };
+
+            /**
+             * Unregister callback for given event.
+             *
+             * @param {String} event
+             *      The event's name
+             * @param {Function} callback
+             *      The function to be exec as callback
+             */
+            exports.un = function (event, callback) {
+                this.core.un(event, callback);
+            };
+
+        });
+        cordova.define("de.appplant.cordova.plugin.local-notification.LocalNotification.Core", function (require, exports, module) {
+            /*
+             * Copyright (c) 2013-2015 by appPlant UG. All rights reserved.
+             *
+             * @APPPLANT_LICENSE_HEADER_START@
+             *
+             * This file contains Original Code and/or Modifications of Original Code
+             * as defined in and that are subject to the Apache License
+             * Version 2.0 (the 'License'). You may not use this file except in
+             * compliance with the License. Please obtain a copy of the License at
+             * http://opensource.org/licenses/Apache-2.0/ and read it before using this
+             * file.
+             *
+             * The Original Code and all software distributed under the License are
+             * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+             * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+             * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+             * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+             * Please see the License for the specific language governing rights and
+             * limitations under the License.
+             *
+             * @APPPLANT_LICENSE_HEADER_END@
+             */
+
+            var exec = require('cordova/exec');
+
+
+            /********
+             * CORE *
+             ********/
+
+            /**
+             * Returns the default settings.
+             *
+             * @return {Object}
+             */
+            exports.getDefaults = function () {
+                return this._defaults;
+            };
+
+            /**
+             * Overwrite default settings.
+             *
+             * @param {Object} defaults
+             */
+            exports.setDefaults = function (newDefaults) {
+                var defaults = this.getDefaults();
+
+                for (var key in defaults) {
+                    if (newDefaults.hasOwnProperty(key)) {
+                        defaults[key] = newDefaults[key];
+                    }
+                }
+            };
+
+            /**
+             * Schedule a new local notification.
+             *
+             * @param {Object} msgs
+             *      The notification properties
+             * @param {Function} callback
+             *      A function to be called after the notification has been canceled
+             * @param {Object?} scope
+             *      The scope for the callback function
+             * @param {Object?} args
+             *      skipPermission:true schedules the notifications immediatly without
+             *                          registering or checking for permission
+             */
+            exports.schedule = function (msgs, callback, scope, args) {
+                var fn = function (granted) {
+
+                    if (!granted) return;
+
+                    var notifications = Array.isArray(msgs) ? msgs : [msgs];
+
+                    for (var i = 0; i < notifications.length; i++) {
+                        var notification = notifications[i];
+
+                        this.mergeWithDefaults(notification);
+                        this.convertProperties(notification);
+                    }
+
+                    this.exec('schedule', notifications, callback, scope);
+                };
+
+                if (args && args.skipPermission) {
+                    fn.call(this, true);
+                } else {
+                    this.registerPermission(fn, this);
+                }
+            };
+
+            /**
+             * Update existing notifications specified by IDs in options.
+             *
+             * @param {Object} notifications
+             *      The notification properties to update
+             * @param {Function} callback
+             *      A function to be called after the notification has been updated
+             * @param {Object?} scope
+             *      The scope for the callback function
+             * @param {Object?} args
+             *      skipPermission:true schedules the notifications immediatly without
+             *                          registering or checking for permission
+             */
+            exports.update = function (msgs, callback, scope, args) {
+                var fn = function (granted) {
+
+                    if (!granted) return;
+
+                    var notifications = Array.isArray(msgs) ? msgs : [msgs];
+
+                    for (var i = 0; i < notifications.length; i++) {
+                        var notification = notifications[i];
+
+                        this.convertProperties(notification);
+                    }
+
+                    this.exec('update', notifications, callback, scope);
+                };
+
+                if (args && args.skipPermission) {
+                    fn.call(this, true);
+                } else {
+                    this.registerPermission(fn, this);
+                }
+            };
+
+            /**
+             * Clear the specified notification.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A function to be called after the notification has been cleared
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.clear = function (ids, callback, scope) {
+                ids = Array.isArray(ids) ? ids : [ids];
+                ids = this.convertIds(ids);
+
+                this.exec('clear', ids, callback, scope);
+            };
+
+            /**
+             * Clear all previously sheduled notifications.
+             *
+             * @param {Function} callback
+             *      A function to be called after all notifications have been cleared
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.clearAll = function (callback, scope) {
+                this.exec('clearAll', null, callback, scope);
+            };
+
+            /**
+             * Cancel the specified notifications.
+             *
+             * @param {String[]} ids
+             *      The IDs of the notifications
+             * @param {Function} callback
+             *      A function to be called after the notifications has been canceled
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.cancel = function (ids, callback, scope) {
+                ids = Array.isArray(ids) ? ids : [ids];
+                ids = this.convertIds(ids);
+
+                this.exec('cancel', ids, callback, scope);
+            };
+
+            /**
+             * Remove all previously registered notifications.
+             *
+             * @param {Function} callback
+             *      A function to be called after all notifications have been canceled
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.cancelAll = function (callback, scope) {
+                this.exec('cancelAll', null, callback, scope);
+            };
+
+            /**
+             * Check if a notification with an ID is present.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.isPresent = function (id, callback, scope) {
+                this.exec('isPresent', id || 0, callback, scope);
+            };
+
+            /**
+             * Check if a notification with an ID is scheduled.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.isScheduled = function (id, callback, scope) {
+                this.exec('isScheduled', id || 0, callback, scope);
+            };
+
+            /**
+             * Check if a notification with an ID was triggered.
+             *
+             * @param {String} id
+             *      The ID of the notification
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.isTriggered = function (id, callback, scope) {
+                this.exec('isTriggered', id || 0, callback, scope);
+            };
+
+            /**
+             * List all local notification IDs.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAllIds = function (callback, scope) {
+                this.exec('getAllIds', null, callback, scope);
+            };
+
+            /**
+             * Alias for `getAllIds`.
+             */
+            exports.getIds = function () {
+                this.getAllIds.apply(this, arguments);
+            };
+
+            /**
+             * List all scheduled notification IDs.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getScheduledIds = function (callback, scope) {
+                this.exec('getScheduledIds', null, callback, scope);
+            };
+
+            /**
+             * List all triggered notification IDs.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getTriggeredIds = function (callback, scope) {
+                this.exec('getTriggeredIds', null, callback, scope);
+            };
+
+            /**
+             * Property list for given local notifications.
+             * If called without IDs, all notification will be returned.
+             *
+             * @param {Number[]?} ids
+             *      Set of notification IDs
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.get = function () {
+                var args = Array.apply(null, arguments);
+
+                if (typeof args[0] == 'function') {
+                    args.unshift([]);
+                }
+
+                var ids = args[0],
+                    callback = args[1],
+                    scope = args[2];
+
+                if (!Array.isArray(ids)) {
+                    this.exec('getSingle', Number(ids), callback, scope);
+                    return;
+                }
+
+                ids = this.convertIds(ids);
+
+                this.exec('getAll', ids, callback, scope);
+            };
+
+            /**
+             * Property list for all local notifications.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAll = function (callback, scope) {
+                this.exec('getAll', null, callback, scope);
+            };
+
+            /**
+             * Property list for given scheduled notifications.
+             * If called without IDs, all notification will be returned.
+             *
+             * @param {Number[]?} ids
+             *      Set of notification IDs
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getScheduled = function () {
+                var args = Array.apply(null, arguments);
+
+                if (typeof args[0] == 'function') {
+                    args.unshift([]);
+                }
+
+                var ids = args[0],
+                    callback = args[1],
+                    scope = args[2];
+
+                if (!Array.isArray(ids)) {
+                    ids = [ids];
+                }
+
+                if (!Array.isArray(ids)) {
+                    this.exec('getSingleScheduled', Number(ids), callback, scope);
+                    return;
+                }
+
+                ids = this.convertIds(ids);
+
+                this.exec('getScheduled', ids, callback, scope);
+            };
+
+            /**
+             * Property list for all scheduled notifications.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAllScheduled = function (callback, scope) {
+                this.exec('getScheduled', null, callback, scope);
+            };
+
+            /**
+             * Property list for given triggered notifications.
+             * If called without IDs, all notification will be returned.
+             *
+             * @param {Number[]?} ids
+             *      Set of notification IDs
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getTriggered = function () {
+                var args = Array.apply(null, arguments);
+
+                if (typeof args[0] == 'function') {
+                    args.unshift([]);
+                }
+
+                var ids = args[0],
+                    callback = args[1],
+                    scope = args[2];
+
+                if (!Array.isArray(ids)) {
+                    ids = [ids];
+                }
+
+                if (!Array.isArray(ids)) {
+                    this.exec('getSingleTriggered', Number(ids), callback, scope);
+                    return;
+                }
+
+                ids = this.convertIds(ids);
+
+                this.exec('getTriggered', ids, callback, scope);
+            };
+
+            /**
+             * Property list for all triggered notifications.
+             *
+             * @param {Function} callback
+             *      A callback function to be called with the list
+             * @param {Object?} scope
+             *      The scope for the callback function
+             */
+            exports.getAllTriggered = function (callback, scope) {
+                this.exec('getTriggered', null, callback, scope);
+            };
+
+            /**
+             * Informs if the app has the permission to show notifications.
+             *
+             * @param {Function} callback
+             *      The function to be exec as the callback
+             * @param {Object?} scope
+             *      The callback function's scope
+             */
+            exports.hasPermission = function (callback, scope) {
+                var fn = this.createCallbackFn(callback, scope);
+
+                if (device.platform != 'iOS') {
+                    fn(true);
+                    return;
+                }
+
+                exec(fn, null, 'LocalNotification', 'hasPermission', []);
+            };
+
+            /**
+             * Register permission to show notifications if not already granted.
+             *
+             * @param {Function} callback
+             *      The function to be exec as the callback
+             * @param {Object?} scope
+             *      The callback function's scope
+             */
+            exports.registerPermission = function (callback, scope) {
+
+                if (this._registered) {
+                    return this.hasPermission(callback, scope);
+                } else {
+                    this._registered = true;
+                }
+
+                var fn = this.createCallbackFn(callback, scope);
+
+                if (device.platform != 'iOS') {
+                    fn(true);
+                    return;
+                }
+
+                exec(fn, null, 'LocalNotification', 'registerPermission', []);
+            };
+
+
+            /**********
+             * EVENTS *
+             **********/
+
+            /**
+             * Register callback for given event.
+             *
+             * @param {String} event
+             *      The event's name
+             * @param {Function} callback
+             *      The function to be exec as callback
+             * @param {Object?} scope
+             *      The callback function's scope
+             */
+            exports.on = function (event, callback, scope) {
+
+                if (typeof callback !== "function")
+                    return;
+
+                if (!this._listener[event]) {
+                    this._listener[event] = [];
+                }
+
+                var item = [callback, scope || window];
+
+                this._listener[event].push(item);
+            };
+
+            /**
+             * Unregister callback for given event.
+             *
+             * @param {String} event
+             *      The event's name
+             * @param {Function} callback
+             *      The function to be exec as callback
+             */
+            exports.un = function (event, callback) {
+                var listener = this._listener[event];
+
+                if (!listener)
+                    return;
+
+                for (var i = 0; i < listener.length; i++) {
+                    var fn = listener[i][0];
+
+                    if (fn == callback) {
+                        listener.splice(i, 1);
+                        break;
+                    }
+                }
+            };
+
+        });
+        cordova.define("de.appplant.cordova.plugin.local-notification.LocalNotification.Util", function (require, exports, module) {
+            /*
+             * Copyright (c) 2013-2015 by appPlant UG. All rights reserved.
+             *
+             * @APPPLANT_LICENSE_HEADER_START@
+             *
+             * This file contains Original Code and/or Modifications of Original Code
+             * as defined in and that are subject to the Apache License
+             * Version 2.0 (the 'License'). You may not use this file except in
+             * compliance with the License. Please obtain a copy of the License at
+             * http://opensource.org/licenses/Apache-2.0/ and read it before using this
+             * file.
+             *
+             * The Original Code and all software distributed under the License are
+             * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+             * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+             * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+             * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+             * Please see the License for the specific language governing rights and
+             * limitations under the License.
+             *
+             * @APPPLANT_LICENSE_HEADER_END@
+             */
+
+            var exec = require('cordova/exec'),
+                channel = require('cordova/channel');
+
+
+            /***********
+             * MEMBERS *
+             ***********/
+
+            // Default values
+            exports._defaults = {
+                text: '',
+                title: '',
+                sound: 'res://platform_default',
+                badge: 0,
+                id: 0,
+                data: undefined,
+                every: undefined,
+                at: undefined
+            };
+
+            // listener
+            exports._listener = {};
+
+            // Registered permission flag
+            exports._registered = false;
+
+
+            /********
+             * UTIL *
+             ********/
+
+            /**
+             * Merge platform specific properties into the default ones.
+             *
+             * @return {Object}
+             *      The default properties for the platform
+             */
+            exports.applyPlatformSpecificOptions = function () {
+                var defaults = this._defaults;
+
+                switch (device.platform) {
+                    case 'Android':
+                        defaults.icon = 'res://ic_popup_reminder';
+                        defaults.smallIcon = undefined;
+                        defaults.ongoing = false;
+                        defaults.autoClear = true;
+                        defaults.led = undefined;
+                        defaults.color = undefined;
+                        break;
+                }
+
+                return defaults;
+            };
+
+            /**
+             * Merge custom properties with the default values.
+             *
+             * @param {Object} options
+             *      Set of custom values
+             *
+             * @retrun {Object}
+             *      The merged property list
+             */
+            exports.mergeWithDefaults = function (options) {
+                var defaults = this.getDefaults();
+
+                options.at = this.getValueFor(options, 'at', 'firstAt', 'date');
+                options.text = this.getValueFor(options, 'text', 'message');
+                options.data = this.getValueFor(options, 'data', 'json');
+
+                if (defaults.hasOwnProperty('autoClear')) {
+                    options.autoClear = this.getValueFor(options, 'autoClear', 'autoCancel');
+                }
+
+                if (options.autoClear !== true && options.ongoing) {
+                    options.autoClear = false;
+                }
+
+                if (options.at === undefined || options.at === null) {
+                    options.at = new Date();
+                }
+
+                for (var key in defaults) {
+                    if (options[key] === null || options[key] === undefined) {
+                        if (options.hasOwnProperty(key) && ['data', 'sound'].indexOf(key) > -1) {
+                            options[key] = undefined;
+                        } else {
+                            options[key] = defaults[key];
+                        }
+                    }
+                }
+
+                for (key in options) {
+                    if (!defaults.hasOwnProperty(key)) {
+                        delete options[key];
+                        console.warn('Unknown property: ' + key);
+                    }
+                }
+
+                return options;
+            };
+
+            /**
+             * Convert the passed values to their required type.
+             *
+             * @param {Object} options
+             *      Set of custom values
+             *
+             * @retrun {Object}
+             *      The converted property list
+             */
+            exports.convertProperties = function (options) {
+
+                if (options.id) {
+                    if (isNaN(options.id)) {
+                        options.id = this.getDefaults().id;
+                        console.warn('Id is not a number: ' + options.id);
+                    } else {
+                        options.id = Number(options.id);
+                    }
+                }
+
+                if (options.title) {
+                    options.title = options.title.toString();
+                }
+
+                if (options.text) {
+                    options.text = options.text.toString();
+                }
+
+                if (options.badge) {
+                    if (isNaN(options.badge)) {
+                        options.badge = this.getDefaults().badge;
+                        console.warn('Badge number is not a number: ' + options.id);
+                    } else {
+                        options.badge = Number(options.badge);
+                    }
+                }
+
+                if (options.at) {
+                    if (typeof options.at == 'object') {
+                        options.at = options.at.getTime();
+                    }
+
+                    options.at = Math.round(options.at / 1000);
+                }
+
+                if (typeof options.data == 'object') {
+                    options.data = JSON.stringify(options.data);
+                }
+
+                if (options.every) {
+                    if (device.platform == 'iOS' && typeof options.every != 'string') {
+                        options.every = this.getDefaults().every;
+                        var warning = 'Every option is not a string: ' + options.id;
+                        warning += '. Expects one of: second, minute, hour, day, week, ';
+                        warning += 'month, year on iOS.';
+                        console.warn(warning);
+                    }
+                }
+
+                return options;
+            };
+
+            /**
+             * Create callback, which will be executed within a specific scope.
+             *
+             * @param {Function} callbackFn
+             *      The callback function
+             * @param {Object} scope
+             *      The scope for the function
+             *
+             * @return {Function}
+             *      The new callback function
+             */
+            exports.createCallbackFn = function (callbackFn, scope) {
+
+                if (typeof callbackFn != 'function')
+                    return;
+
+                return function () {
+                    callbackFn.apply(scope || this, arguments);
+                };
+            };
+
+            /**
+             * Convert the IDs to numbers.
+             *
+             * @param {String/Number[]} ids
+             *
+             * @return Array of Numbers
+             */
+            exports.convertIds = function (ids) {
+                var convertedIds = [];
+
+                for (var i = 0; i < ids.length; i++) {
+                    convertedIds.push(Number(ids[i]));
+                }
+
+                return convertedIds;
+            };
+
+            /**
+             * First found value for the given keys.
+             *
+             * @param {Object} options
+             *      Object with key-value properties
+             * @param {String[]} keys*
+             *      Key list
+             */
+            exports.getValueFor = function (options) {
+                var keys = Array.apply(null, arguments).slice(1);
+
+                for (var i = 0; i < keys.length; i++) {
+                    var key = keys[i];
+
+                    if (options.hasOwnProperty(key)) {
+                        return options[key];
+                    }
+                }
+            };
+
+            /**
+             * Fire event with given arguments.
+             *
+             * @param {String} event
+             *      The event's name
+             * @param {args*}
+             *      The callback's arguments
+             */
+            exports.fireEvent = function (event) {
+                var args = Array.apply(null, arguments).slice(1),
+                    listener = this._listener[event];
+
+                if (!listener)
+                    return;
+
+                for (var i = 0; i < listener.length; i++) {
+                    var fn = listener[i][0],
+                        scope = listener[i][1];
+
+                    fn.apply(scope, args);
+                }
+            };
+
+            /**
+             * Execute the native counterpart.
+             *
+             * @param {String} action
+             *      The name of the action
+             * @param args[]
+             *      Array of arguments
+             * @param {Function} callback
+             *      The callback function
+             * @param {Object} scope
+             *      The scope for the function
+             */
+            exports.exec = function (action, args, callback, scope) {
+                var fn = this.createCallbackFn(callback, scope),
+                    params = [];
+
+                if (Array.isArray(args)) {
+                    params = args;
+                } else if (args) {
+                    params.push(args);
+                }
+
+                exec(fn, null, 'LocalNotification', action, params);
+            };
+
+
+            /*********
+             * HOOKS *
+             *********/
+
+            // Called after 'deviceready' event
+            channel.deviceready.subscribe(function () {
+                // Device is ready now, the listeners are registered
+                // and all queued events can be executed.
+                exec(null, null, 'LocalNotification', 'deviceready', []);
+            });
+
+            // Called before 'deviceready' event
+            channel.onCordovaReady.subscribe(function () {
+                // Device plugin is ready now
+                channel.onCordovaInfoReady.subscribe(function () {
+                    // Merge platform specifics into defaults
+                    exports.applyPlatformSpecificOptions();
+                });
+            });
+
+        });
+
     };
 
     var _fnCordovaCommon = function (CORDOVA_JS_BUILD_LABEL) {
@@ -5443,6 +6699,11 @@
                 "clobbers": [
                     "DronaHQ.sync"
                 ]
+            }, {
+                "id": "cordova-plugin-dronahq.kvstore",
+                "clobbers": [
+                    "DronaHQ.KVStore"
+                ]
             }];
 
             var arrFileTransfer = [{
@@ -5621,21 +6882,48 @@
                     ]
                 }
             ];
-            
+
             var arrKeyboardIOS = [{
-                "file":"",
+                "file": "",
                 "id": "ionic-plugin-keyboard.iOS",
-                "clobbers":[
+                "clobbers": [
                     "cordova.plugins.Keyboard"
                 ]
             }];
             var arrKeyboardAndroid = [{
-                "file":"",
+                "file": "",
                 "id": "ionic-plugin-keyboard.Android",
-                "clobbers":[
+                "clobbers": [
                     "cordova.plugins.Keyboard"
                 ]
-            }]
+            }];
+
+            var arrLocalNotification = [
+                {
+                    "file": "plugins/de.appplant.cordova.plugin.local-notification/www/local-notification.js",
+                    "id": "de.appplant.cordova.plugin.local-notification.LocalNotification",
+                    "clobbers": [
+                        "cordova.plugins.notification.local",
+                        "plugin.notification.local"
+                    ]
+                },
+                {
+                    "file": "plugins/de.appplant.cordova.plugin.local-notification/www/local-notification-core.js",
+                    "id": "de.appplant.cordova.plugin.local-notification.LocalNotification.Core",
+                    "clobbers": [
+                        "cordova.plugins.notification.local.core",
+                        "plugin.notification.local.core"
+                    ]
+                },
+                {
+                    "file": "plugins/de.appplant.cordova.plugin.local-notification/www/local-notification-util.js",
+                    "id": "de.appplant.cordova.plugin.local-notification.LocalNotification.Util",
+                    "merges": [
+                        "cordova.plugins.notification.local.core",
+                        "plugin.notification.local.core"
+                    ]
+                }
+            ];
 
 
             var arrPluginList = [];
@@ -5685,15 +6973,20 @@
                 objPluginMeta["cordova-sqlite-storage"] = "0.8.0";
             }
             //Keyboard
-            if(DronaHQ.plugins.keyboard){
-                if(DronaHQ.onIos){
+            if (DronaHQ.plugins.keyboard) {
+                if (DronaHQ.onIos) {
                     arrPluginList = arrPluginList.concat(arrKeyboardIOS);
                     objPluginMeta["ionic-plugin-keyboard"] = "2.0.1";
                 }
-                if(DronaHQ.onAndroid){
+                if (DronaHQ.onAndroid) {
                     arrPluginList = arrPluginList.concat(arrKeyboardAndroid);
                     objPluginMeta["ionic-plugin-keyboard"] = "2.0.1";
                 }
+            }
+            //Local Notification
+            if (DronaHQ.plugins.localnotification) {
+                arrPluginList = arrPluginList.concat(arrLocalNotification);
+                objPluginMeta["cordova-plugin-local-notifications"] = "0.8.4";
             }
 
             module.exports = arrPluginList;
@@ -7153,7 +8446,6 @@
         _fnCordovaBrowserPlugin();
     };
 
-
     /**
      * Returns if app is running inside iframe
      */
@@ -7197,7 +8489,7 @@
             }
         }
     };
-        
+
     _fnInitCordova();
 
     window.DronaHQ = DronaHQ;
