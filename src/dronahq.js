@@ -6980,6 +6980,1053 @@
             var sslCertificateChecker = new SSLCertificateChecker();
             module.exports = sslCertificateChecker;
         });
+
+        // ADAL plugin: https://github.com/AzureAD/azure-activedirectory-library-for-cordova
+        cordova.define("cordova-plugin-ms-adal.AuthenticationContext", function (require, exports, module) {
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            /*global module, require*/
+
+            var checkArgs = require('cordova/argscheck').checkArgs;
+
+            var bridge = require('./CordovaBridge');
+            var Deferred = require('./utility').Utility.Deferred;
+            var AuthenticationResult = require('./AuthenticationResult');
+            var TokenCache = require('./TokenCache');
+
+            /**
+             * Constructs context to use with known authority to get the token. It reuses existing context
+             * for this authority URL in native proxy or creates a new one if it doesn't exists.
+             * Corresponding native context will be created at first time when it will be needed.
+             *
+             * @param   {String}  authority         Authority url to send code and token requests
+             * @param   {Boolean} validateAuthority Validate authority before sending token request
+             *                                      When context is being created syncronously using this constructor
+             *                                      validateAuthority in native context will be disabled to prevent
+             *                                      context initialization failure
+             *
+             * @returns {Object}  Newly created authentication context.
+             */
+            function AuthenticationContext(authority, validateAuthority) {
+
+                checkArgs('s*', 'AuthenticationContext', arguments);
+
+                if (validateAuthority !== false) {
+                    validateAuthority = true;
+                }
+
+                this.authority = authority;
+                this.validateAuthority = validateAuthority;
+                this.tokenCache = new TokenCache(this);
+            }
+
+            /**
+             * Constructs context asynchronously to use with known authority to get the token.
+             * It reuses existing context for this authority URL in native proxy or creates a new one if it doesn't exists.
+             *
+             * @param   {String}   authority         Authority url to send code and token requests
+             * @param   {Boolean}  validateAuthority Validate authority before sending token request. True by default
+             *
+             * @returns {Promise}  Promise either fulfilled with newly created authentication context or rejected with error
+             */
+            AuthenticationContext.createAsync = function (authority, validateAuthority) {
+
+                checkArgs('s*', 'AuthenticationContext.createAsync', arguments);
+
+                var d = new Deferred();
+
+                if (validateAuthority !== false) {
+                    validateAuthority = true;
+                }
+
+                bridge.executeNativeMethod('createAsync', [authority, validateAuthority]).then(function () {
+                    d.resolve(new AuthenticationContext(authority, validateAuthority));
+                }, function (err) {
+                    d.reject(err);
+                });
+
+                return d;
+            };
+
+            /**
+             * Acquires token using interactive flow. It always shows UI and skips token from cache.
+             *
+             * @param   {String}  resourceUrl Resource identifier
+             * @param   {String}  clientId    Client (application) identifier
+             * @param   {String}  redirectUrl Redirect url for this application
+             * @param   {String}  userId      User identifier (optional)
+             * @param   {String}  extraQueryParameters
+             *                                Extra query parameters (optional)
+             *                                Parameters should be escaped before passing to this method (e.g. using 'encodeURI()')
+             *
+             * @returns {Promise} Promise either fulfilled with AuthenticationResult object or rejected with error
+             */
+            AuthenticationContext.prototype.acquireTokenAsync = function (resourceUrl, clientId, redirectUrl, userId, extraQueryParameters) {
+
+                checkArgs('sssSS', 'AuthenticationContext.acquireTokenAsync', arguments);
+
+                var d = new Deferred();
+
+                bridge.executeNativeMethod('acquireTokenAsync', [this.authority, this.validateAuthority, resourceUrl, clientId, redirectUrl,
+                        userId, extraQueryParameters
+                ])
+                    .then(function (authResult) {
+                        d.resolve(new AuthenticationResult(authResult));
+                    }, function (err) {
+                        d.reject(err);
+                    });
+
+                return d;
+            };
+
+            /**
+             * Acquires token WITHOUT using interactive flow. It checks the cache to return existing result
+             * if not expired. It tries to use refresh token if available. If it fails to get token without
+             * displaying UI it will fail. This method guarantees that no UI will be shown to user.
+             *
+             * @param   {String}  resourceUrl Resource identifier
+             * @param   {String}  clientId    Client (application) identifier
+             * @param   {String}  userId      User identifier (optional)
+             *
+             * @returns {Promise} Promise either fulfilled with AuthenticationResult object or rejected with error
+             */
+            AuthenticationContext.prototype.acquireTokenSilentAsync = function (resourceUrl, clientId, userId) {
+
+                checkArgs('ssS', 'AuthenticationContext.acquireTokenSilentAsync', arguments);
+
+                var d = new Deferred();
+
+                bridge.executeNativeMethod('acquireTokenSilentAsync', [this.authority, this.validateAuthority, resourceUrl, clientId, userId])
+                    .then(function (authResult) {
+                        d.resolve(new AuthenticationResult(authResult));
+                    }, function (err) {
+                        d.reject(err);
+                    });
+
+                return d;
+            };
+
+            module.exports = AuthenticationContext;
+
+        });
+        cordova.define("cordova-plugin-ms-adal.AuthenticationResult", function (require, exports, module) {
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            /*global module, require*/
+
+            var UserInfo = require('./UserInfo');
+
+            /**
+             * Represents the result token acquisition operation.
+             */
+            function AuthenticationResult(authResult) {
+                this.accessToken = authResult.accessToken;
+                this.accessTokenType = authResult.accessTokenType;
+                this.expiresOn = authResult.expiresOn ? new Date(authResult.expiresOn) : null;
+                this.idToken = authResult.idToken;
+                this.isMultipleResourceRefreshToken = authResult.isMultipleResourceRefreshToken;
+                this.status = authResult.status;
+                this.statusCode = authResult.statusCode;
+                this.tenantId = authResult.tenantId;
+
+                this.userInfo = authResult.idToken ? UserInfo.fromJWT(authResult.idToken) : null;
+            }
+
+            /**
+             * Creates authorization header for web requests.
+             *
+             * @returns {String} The authorization header.
+             */
+            AuthenticationResult.prototype.createAuthorizationHeader = function () {
+                return "Bearer " + this.accessToken;
+            };
+
+            module.exports = AuthenticationResult;
+
+        });
+        cordova.define("cordova-plugin-ms-adal.AuthenticationSettings", function (require, exports, module) {
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            /*global module, require*/
+
+            var checkArgs = require('cordova/argscheck').checkArgs;
+
+            var bridge = require('./CordovaBridge');
+            var Deferred = require('./utility').Utility.Deferred;
+
+            module.exports = {
+
+                /**
+                 * Sets flag to use or skip authentication broker.
+                 * By default, the flag value is false and ADAL will not talk to broker.
+                 *
+                 * @param   {Boolean}   useBroker         Flag to use or skip authentication broker
+                 *
+                 * @returns {Promise}  Promise either fulfilled or rejected with error
+                 */
+                setUseBroker: function (useBroker) {
+
+                    checkArgs('*', 'AuthenticationSettings.setUseBroker', arguments);
+
+                    return bridge.executeNativeMethod('setUseBroker', [!!useBroker]);
+                }
+            }
+
+        });
+        cordova.define("cordova-plugin-ms-adal.CordovaBridge", function (require, exports, module) {
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            /*global module, require*/
+
+            var exec = require('cordova/exec');
+            var Deferred = require('./utility').Utility.Deferred;
+
+            var GENERIC_ERR_MESSAGE = "Error occured while executing native method.";
+            var GENERIC_ERR_CODE = "NATIVE_METHOD_GENERAL_FAILURE";
+            /**
+             * Implements proxy between Cordova JavaScript and Native functionality
+             */
+            var cordovaBridge = {
+                /**
+                 * Helper method to execute Cordova native method
+                 *
+                 * @param   {String}  nativeMethodName Method to execute.
+                 * @param   {Array}   args             Execution arguments.
+                 *
+                 * @returns {Promise} Promise which wraps method success/error callbacks.
+                 */
+                executeNativeMethod: function (nativeMethodName, args) {
+                    var deferred = new Deferred();
+
+                    var win = function (res) {
+                        deferred.resolve(res);
+                    };
+
+                    var fail = function (err) {
+
+                        if (typeof err === "string") {
+                            err = {
+                                errorDescription: err
+                            };
+                        }
+
+                        var error = new Error(err.errorDescription || err.message || err.Message || GENERIC_ERR_MESSAGE);
+                        error.code = err.error || err.errorCode || GENERIC_ERR_CODE;
+                        error.details = err;
+
+                        deferred.reject(error);
+                    };
+
+                    exec(win, fail, "ADALProxy", nativeMethodName, args);
+
+                    return deferred;
+                }
+            };
+
+            module.exports = cordovaBridge;
+
+        });
+        cordova.define("cordova-plugin-ms-adal.TokenCache", function (require, exports, module) {
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            /*global module, require*/
+
+            var bridge = require('./CordovaBridge');
+            var TokenCacheItem = require('./TokenCacheItem');
+            var Deferred = require('./utility').Utility.Deferred;
+            var checkArgs = require('cordova/argscheck').checkArgs;
+
+            /**
+             * Token cache class used by {AuthenticationContext} to store access and refresh tokens.
+             */
+            function TokenCache(authContext) {
+                this.authContext = authContext;
+            }
+
+            /**
+             * Clears the cache by deleting all the items.
+             *
+             * @returns {Promise} Promise either fulfilled when operation is completed or rejected with error.
+             */
+            TokenCache.prototype.clear = function () {
+                return bridge.executeNativeMethod('tokenCacheClear', [this.authContext.authority, this.authContext.validateAuthority]);
+            };
+
+            /**
+             * Gets all cached items.
+             *
+             * @returns {Promise} Promise either fulfilled with array of cached items or rejected with error.
+             */
+            TokenCache.prototype.readItems = function () {
+                checkArgs('', 'TokenCache.readItems', arguments);
+                var result = [];
+
+                var d = new Deferred();
+
+                bridge.executeNativeMethod('tokenCacheReadItems', [this.authContext.authority, this.authContext.validateAuthority])
+                    .then(function (tokenCacheItems) {
+                        tokenCacheItems.forEach(function (item) {
+                            result.push(new TokenCacheItem(item));
+                        });
+                        d.resolve(result);
+                    }, function (err) {
+                        d.reject(err);
+                    });
+
+                return d;
+            };
+
+            /**
+             * Deletes cached item.
+             *
+             * @param   {TokenCacheItem}  item Cached item to delete from cache
+             *
+             * @returns {Promise} Promise either fulfilled when operation is completed or rejected with error.
+             */
+            TokenCache.prototype.deleteItem = function (item) {
+                checkArgs('*', 'TokenCache.deleteItem', arguments);
+
+                var args = [
+                    this.authContext.authority,
+                    this.authContext.validateAuthority,
+                    item.authority,
+                    item.resource,
+                    item.clientId,
+                    item.userInfo && item.userInfo.userId,
+                    item.isMultipleResourceRefreshToken
+                ];
+
+                return bridge.executeNativeMethod('tokenCacheDeleteItem', args);
+            };
+
+            module.exports = TokenCache;
+
+        });
+        cordova.define("cordova-plugin-ms-adal.TokenCacheItem", function (require, exports, module) {
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            /*global module, require*/
+
+            var UserInfo = require('./UserInfo');
+
+            /**
+             * Represents token cache item.
+             */
+            function TokenCacheItem(cacheItem) {
+
+                cacheItem = cacheItem || {};
+
+                this.accessToken = cacheItem.accessToken;
+                this.authority = cacheItem.authority;
+                this.clientId = cacheItem.clientId;
+                this.displayableId = cacheItem.displayableId;
+                this.expiresOn = cacheItem.expiresOn ? new Date(cacheItem.expiresOn) : null;
+                this.isMultipleResourceRefreshToken = cacheItem.isMultipleResourceRefreshToken;
+                this.resource = cacheItem.resource;
+                this.tenantId = cacheItem.tenantId;
+
+                this.userInfo = cacheItem.idToken ? UserInfo.fromJWT(cacheItem.idToken) : null;
+            }
+
+            module.exports = TokenCacheItem;
+
+        });
+        cordova.define("cordova-plugin-ms-adal.UserInfo", function (require, exports, module) {
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            /*global module*/
+
+            var util = require('./utility');
+
+            /**
+             * Represents information about authorized user.
+             */
+            function UserInfo(userInfo) {
+
+                userInfo = userInfo || {};
+
+                this.displayableId = userInfo.displayableId;
+                this.userId = userInfo.userId || userInfo.uniqueId;
+                this.familyName = userInfo.familyName;
+                this.givenName = userInfo.givenName;
+                this.identityProvider = userInfo.identityProvider;
+                this.passwordChangeUrl = userInfo.passwordChangeUrl; //uri
+                this.passwordExpiresOn = userInfo.passwordExpiresOn ? new Date(userInfo.passwordExpiresOn) : null;
+                this.uniqueId = userInfo.uniqueId;
+            }
+
+            /**
+             * Parses jwt token that contains a use information and produces a valid UserInfo structure.
+             * This method is intended for internal use and should not be used by end-user.
+             *
+             * @param  {String} jwtToken String that contains a valid JWT token, that contains user information.
+             *                           Usually this is an idToken field of authenticationResult structure.
+             *
+             * @return {Object}          UserInfo object, created from token data.
+             */
+            UserInfo.fromJWT = function function_name(jwtToken) {
+                // JWT token passed here should be a non-empty string
+                if (typeof jwtToken !== 'string' || jwtToken.length === 0) {
+                    return null;
+                }
+
+                var token;
+                // If there is non-valid JWT token passed we don't want to
+                // bubble error up and return null, as jwt isn't passed at all.
+                try {
+                    token = util.parseJWT(jwtToken);
+                } catch (e) {
+                    return null;
+                }
+
+                var result = new UserInfo();
+
+                result.displayableId = token.name;
+                result.familyName = token.family_name;
+                result.givenName = token.given_name;
+                // Due to https://msdn.microsoft.com/en-us/library/azure/dn195587.aspx this value is
+                // identical to the value of the Issuer claim unless the user account is in a different tenant than the issuer.
+                // In case when identity provider is not specified in token, we use 'issuer' field ('iss' claim) of token
+                result.identityProvider = token.idp || token.iss;
+                result.passwordChangeUrl = token.pwd_url;
+                // JWT 'exp' is in seconds, Date requires value in milliseconds
+                result.passwordExpiresOn = token.exp ? new Date(token.exp * 1000) : null;
+                result.uniqueId = token.unique_name;
+                // Users not synced will have no `oid` so we fallback to `sub` similar to what native libs do, for example:
+                // https://github.com/AzureAD/azure-activedirectory-library-for-dotnet/blob/c5c66c097a6499e0c646f5ed1db1d6d278683104/src/ADAL.PCL/TokenResponse.cs#L205
+                result.userId = token.oid || token.sub;
+
+                return result;
+            };
+
+            module.exports = UserInfo;
+
+        });
+        cordova.define("cordova-plugin-ms-adal.utility", function (require, exports, module) {
+
+            // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+
+            var __extends = this.__extends || function (d, b) {
+                for (var p in b)
+                    if (b.hasOwnProperty(p)) d[p] = b[p];
+
+                function __() {
+                    this.constructor = d;
+                }
+                __.prototype = b.prototype;
+                d.prototype = new __();
+            };
+
+            (function (Microsoft) {
+                (function (Utility) {
+                    (function (EncodingHelpers) {
+                        function getKeyExpression(entityKeys) {
+                            var entityInstanceKey = '(';
+
+                            if (entityKeys.length == 1) {
+                                entityInstanceKey += formatLiteral(entityKeys[0]);
+                            } else {
+                                var addComma = false;
+                                for (var i = 0; i < entityKeys.length; i++) {
+                                    if (addComma) {
+                                        entityInstanceKey += ',';
+                                    } else {
+                                        addComma = true;
+                                    }
+
+                                    entityInstanceKey += entityKeys[i].name + '=' + formatLiteral(entityKeys[i]);
+                                }
+                            }
+
+                            entityInstanceKey += ')';
+
+                            return entityInstanceKey;
+                        }
+                        EncodingHelpers.getKeyExpression = getKeyExpression;
+
+                        function formatLiteral(literal) {
+                            /// <summary>Formats a value according to Uri literal format</summary>
+                            /// <param name="value">Value to be formatted.</param>
+                            /// <param name="type">Edm type of the value</param>
+                            /// <returns type="string">Value after formatting</returns>
+                            var result = "" + formatRowLiteral(literal.value, literal.type);
+
+                            result = encodeURIComponent(result.replace("'", "''"));
+
+                            switch ((literal.type)) {
+                                case "Edm.Binary":
+                                    return "X'" + result + "'";
+                                case "Edm.DateTime":
+                                    return "datetime" + "'" + result + "'";
+                                case "Edm.DateTimeOffset":
+                                    return "datetimeoffset" + "'" + result + "'";
+                                case "Edm.Decimal":
+                                    return result + "M";
+                                case "Edm.Guid":
+                                    return "guid" + "'" + result + "'";
+                                case "Edm.Int64":
+                                    return result + "L";
+                                case "Edm.Float":
+                                    return result + "f";
+                                case "Edm.Double":
+                                    return result + "D";
+                                case "Edm.Geography":
+                                    return "geography" + "'" + result + "'";
+                                case "Edm.Geometry":
+                                    return "geometry" + "'" + result + "'";
+                                case "Edm.Time":
+                                    return "time" + "'" + result + "'";
+                                case "Edm.String":
+                                    return "'" + result + "'";
+                                default:
+                                    return result;
+                            }
+                        }
+                        EncodingHelpers.formatLiteral = formatLiteral;
+
+                        function formatRowLiteral(value, type) {
+                            switch (type) {
+                                case "Edm.Binary":
+                                    return Microsoft.Utility.decodeBase64AsHexString(value);
+                                default:
+                                    return value;
+                            }
+                        }
+                    })(Utility.EncodingHelpers || (Utility.EncodingHelpers = {}));
+                    var EncodingHelpers = Utility.EncodingHelpers;
+
+                    function findProperties(o) {
+                        var aPropertiesAndMethods = [];
+
+                        do {
+                            aPropertiesAndMethods = aPropertiesAndMethods.concat(Object.getOwnPropertyNames(o));
+                        } while (o = Object.getPrototypeOf(o));
+
+                        for (var a = 0; a < aPropertiesAndMethods.length; ++a) {
+                            for (var b = a + 1; b < aPropertiesAndMethods.length; ++b) {
+                                if (aPropertiesAndMethods[a] === aPropertiesAndMethods[b]) {
+                                    aPropertiesAndMethods.splice(a--, 1);
+                                }
+                            }
+                        }
+
+                        return aPropertiesAndMethods;
+                    }
+                    Utility.findProperties = findProperties;
+
+                    function decodeBase64AsHexString(base64) {
+                        var decoded = decodeBase64(base64),
+                            hexValue = "",
+                            hexValues = "0123456789ABCDEF";
+
+                        for (var j = 0; j < decoded.length; j++) {
+                            var byte = decoded[j];
+                            hexValue += hexValues[byte >> 4];
+                            hexValue += hexValues[byte & 0x0F];
+                        }
+
+                        return hexValue;
+                    }
+                    Utility.decodeBase64AsHexString = decodeBase64AsHexString;
+
+                    function decodeBase64(base64) {
+                        var decoded = [];
+
+                        if (window.atob !== undefined) {
+                            var binaryStr = window.atob(base64);
+                            for (var i = 0; i < binaryStr.length; i++) {
+                                decoded.push(binaryStr.charCodeAt(i));
+                            }
+                            return decoded;
+                        }
+
+                        for (var index = 0; index < base64.length; index += 4) {
+                            var sextet1 = getBase64Sextet(base64[index]);
+                            var sextet2 = getBase64Sextet(base64[index + 1]);
+                            var sextet3 = (index + 2 < base64.length) ? getBase64Sextet(base64[index + 2]) : null;
+                            var sextet4 = (index + 3 < base64.length) ? getBase64Sextet(base64[index + 3]) : null;
+                            decoded.push((sextet1 << 2) | (sextet2 >> 4));
+                            if (sextet3)
+                                decoded.push(((sextet2 & 0xF) << 4) | (sextet3 >> 2));
+                            if (sextet4)
+                                decoded.push(((sextet3 & 0x3) << 6) | sextet4);
+                        }
+
+                        return decoded;
+                    }
+                    Utility.decodeBase64 = decodeBase64;
+
+                    function decodeBase64AsString(base64) {
+                        var decoded = decodeBase64(base64),
+                            decoded_string;
+
+                        decoded.forEach(function (value, index, decoded_access_token) {
+                            if (!decoded_string) {
+                                decoded_string = String.fromCharCode(value);
+                            } else {
+                                decoded_string += String.fromCharCode(value);
+                            }
+                        });
+
+                        return decoded_string;
+                    }
+                    Utility.decodeBase64AsString = decodeBase64AsString;
+
+                    function getBase64Sextet(character) {
+                        var code = character.charCodeAt(0);
+
+                        if (code >= 65 && code <= 90)
+                            return code - 65;
+
+                        if (code >= 97 && code <= 122)
+                            return code - 71;
+
+                        if (code >= 48 && code <= 57)
+                            return code + 4;
+
+                        if (character === "+")
+                            return 62;
+
+                        if (character === "/")
+                            return 63;
+
+                        return null;
+                    }
+
+                    var Exception = (function () {
+                        function Exception(message, innerException) {
+                            this._message = message;
+                            if (innerException) {
+                                this._innerException = innerException;
+                            }
+                        }
+                        Object.defineProperty(Exception.prototype, "message", {
+                            get: function () {
+                                return this._message;
+                            },
+                            enumerable: true,
+                            configurable: true
+                        });
+
+                        Object.defineProperty(Exception.prototype, "innerException", {
+                            get: function () {
+                                return this._innerException;
+                            },
+                            enumerable: true,
+                            configurable: true
+                        });
+                        return Exception;
+                    })();
+                    Utility.Exception = Exception;
+
+                    var HttpException = (function (_super) {
+                        __extends(HttpException, _super);
+
+                        function HttpException(XHR, innerException) {
+                            _super.call(this, XHR.statusText, innerException);
+                            this.getHeaders = this.getHeadersFn(XHR);
+                        }
+                        HttpException.prototype.getHeadersFn = function (xhr) {
+                            return function (headerName) {
+                                if (headerName && headerName.length > 0) {
+                                    return xhr.getResponseHeader(headerName);
+                                } else {
+                                    return xhr.getAllResponseHeaders();
+                                };
+                            };
+                        };
+
+                        Object.defineProperty(HttpException.prototype, "xhr", {
+                            get: function () {
+                                return this._xhr;
+                            },
+                            enumerable: true,
+                            configurable: true
+                        });
+                        return HttpException;
+                    })(Exception);
+                    Utility.HttpException = HttpException;
+
+                    var DeferredState;
+                    (function (DeferredState) {
+                        DeferredState[DeferredState["UNFULFILLED"] = 0] = "UNFULFILLED";
+                        DeferredState[DeferredState["RESOLVED"] = 1] = "RESOLVED";
+                        DeferredState[DeferredState["REJECTED"] = 2] = "REJECTED";
+                    })(DeferredState || (DeferredState = {}));
+
+                    var Deferred = (function () {
+                        function Deferred() {
+                            this._fulfilled = function () { };
+                            this._rejected = function () { };
+                            this._progress = function () { };
+                            this._state = 0 /* UNFULFILLED */;
+                        }
+                        Deferred.prototype.then = function (onFulfilled, onRejected, onProgress) {
+                            this._deferred = new Deferred();
+                            var that = this;
+
+                            if (onFulfilled && typeof onFulfilled === 'function') {
+                                this._fulfilled = function (value) {
+                                    var result;
+                                    try {
+                                        result = onFulfilled(value);
+                                    } catch (err) {
+                                        that._deferred.reject(err);
+                                        return;
+                                    }
+
+                                    if (result instanceof Deferred) {
+                                        result.then(function (res) {
+                                            that._deferred.resolve(res);
+                                        }, function (err) {
+                                            that._deferred.reject(err);
+                                        });
+                                    } else {
+                                        that._deferred.resolve(result);
+                                    }
+                                };
+                            }
+
+                            if (onRejected && typeof onRejected === 'function') {
+                                this._rejected = function (reason) {
+                                    var result;
+                                    try {
+                                        result = onRejected(reason);
+                                    } catch (err) {
+                                        that._deferred.reject(err);
+                                        return;
+                                    }
+
+                                    if (result instanceof Deferred) {
+                                        result.then(function (res) {
+                                            that._deferred.resolve(res);
+                                        }, function (err) {
+                                            that._deferred.reject(err);
+                                        });
+                                    } else {
+                                        that._deferred.reject(result);
+                                    }
+                                };
+                            }
+
+                            if (onProgress && typeof onProgress === 'function') {
+                                this._progress = function (progress) {
+                                    var result;
+                                    try {
+                                        result = onProgress(progress);
+                                    } catch (err) {
+                                        that._deferred.reject(err);
+                                        return;
+                                    }
+
+                                    if (result instanceof Deferred) {
+                                        result.then(function (res) {
+                                            that._deferred.notify(res);
+                                        }, function (err) {
+                                            that._deferred.reject(err);
+                                        });
+                                    } else {
+                                        that._deferred.notify(result);
+                                    }
+                                };
+                            }
+
+                            switch (this._state) {
+                                case 0 /* UNFULFILLED */:
+                                    break;
+                                case 1 /* RESOLVED */:
+                                    this._fulfilled(this._value);
+                                    break;
+                                case 2 /* REJECTED */:
+                                    this._rejected(this._reason);
+                                    break;
+                            }
+
+                            return this._deferred;
+                        };
+
+                        Deferred.prototype.detach = function () {
+                            this._fulfilled = function () { };
+                            this._rejected = function () { };
+                            this._progress = function () { };
+                        };
+
+                        Deferred.prototype.resolve = function (value) {
+                            if (this._state !== 0 /* UNFULFILLED */) {
+                                throw new Microsoft.Utility.Exception("Invalid deferred state = " + this._state);
+                            }
+                            this._value = value;
+                            var fulfilled = this._fulfilled;
+                            this.detach();
+                            this._state = 1 /* RESOLVED */;
+                            fulfilled(value);
+                        };
+
+                        Deferred.prototype.reject = function (reason) {
+                            if (this._state !== 0 /* UNFULFILLED */) {
+                                throw new Microsoft.Utility.Exception("Invalid deferred state = " + this._state);
+                            }
+                            this._reason = reason;
+                            var rejected = this._rejected;
+                            this.detach();
+                            this._state = 2 /* REJECTED */;
+                            rejected(reason);
+                        };
+
+                        Deferred.prototype.notify = function (progress) {
+                            if (this._state !== 0 /* UNFULFILLED */) {
+                                throw new Microsoft.Utility.Exception("Invalid deferred state = " + this._state);
+                            }
+                            this._progress(progress);
+                        };
+
+                        return Deferred;
+                    })();
+                    Utility.Deferred = Deferred;
+
+                    (function (HttpHelpers) {
+                        var Request = (function () {
+                            function Request(requestUri, method, data) {
+                                this.requestUri = requestUri;
+                                this.method = method;
+                                this.data = data;
+                                this.headers = {};
+                                this.disableCache = false;
+                            }
+                            return Request;
+                        })();
+                        HttpHelpers.Request = Request;
+
+                        var AuthenticatedHttp = (function () {
+                            function AuthenticatedHttp(getAccessTokenFn) {
+                                this._disableCache = false;
+                                this._noCache = Date.now();
+                                this._accept = 'application/json;q=0.9, */*;q=0.1';
+                                this._contentType = 'application/json';
+                                this._getAccessTokenFn = getAccessTokenFn;
+                            }
+                            Object.defineProperty(AuthenticatedHttp.prototype, "disableCache", {
+                                get: function () {
+                                    return this._disableCache;
+                                },
+                                set: function (value) {
+                                    this._disableCache = value;
+                                },
+                                enumerable: true,
+                                configurable: true
+                            });
+
+
+                            Object.defineProperty(AuthenticatedHttp.prototype, "accept", {
+                                get: function () {
+                                    return this._accept;
+                                },
+                                set: function (value) {
+                                    this._accept = value;
+                                },
+                                enumerable: true,
+                                configurable: true
+                            });
+
+
+                            Object.defineProperty(AuthenticatedHttp.prototype, "contentType", {
+                                get: function () {
+                                    return this._contentType;
+                                },
+                                set: function (value) {
+                                    this._contentType = value;
+                                },
+                                enumerable: true,
+                                configurable: true
+                            });
+
+
+                            AuthenticatedHttp.prototype.ajax = function (request) {
+                                var deferred = new Microsoft.Utility.Deferred();
+
+                                var xhr = new XMLHttpRequest();
+
+                                if (!request.method) {
+                                    request.method = 'GET';
+                                }
+
+                                xhr.open(request.method.toUpperCase(), request.requestUri, true);
+
+                                if (request.headers) {
+                                    for (name in request.headers) {
+                                        xhr.setRequestHeader(name, request.headers[name]);
+                                    }
+                                }
+
+                                xhr.onreadystatechange = function (e) {
+                                    if (xhr.readyState == 4) {
+                                        if (xhr.status >= 200 && xhr.status < 300 || xhr.status === 304) {
+                                            deferred.resolve(xhr.responseText);
+                                        } else {
+                                            deferred.reject(xhr);
+                                        }
+                                    } else {
+                                        deferred.notify(xhr.readyState);
+                                    }
+                                };
+
+                                if (request.data) {
+                                    if (typeof request.data === 'string') {
+                                        xhr.send(request.data);
+                                    } else {
+                                        xhr.send(JSON.stringify(request.data));
+                                    }
+                                } else {
+                                    xhr.send();
+                                }
+
+                                return deferred;
+                            };
+
+                            AuthenticatedHttp.prototype.getUrl = function (url) {
+                                return this.request(new Request(url));
+                            };
+
+                            AuthenticatedHttp.prototype.postUrl = function (url, data) {
+                                return this.request(new Request(url, 'POST', data));
+                            };
+
+                            AuthenticatedHttp.prototype.deleteUrl = function (url) {
+                                return this.request(new Request(url, 'DELETE'));
+                            };
+
+                            AuthenticatedHttp.prototype.patchUrl = function (url, data) {
+                                return this.request(new Request(url, 'PATCH', data));
+                            };
+
+                            AuthenticatedHttp.prototype.request = function (request) {
+                                var _this = this;
+                                var deferred;
+
+                                this.augmentRequest(request);
+
+                                if (this._getAccessTokenFn) {
+                                    deferred = new Microsoft.Utility.Deferred();
+
+                                    this._getAccessTokenFn().then((function (token) {
+                                        request.headers["Authorization"] = 'Bearer ' + token;
+                                        _this.ajax(request).then(deferred.resolve, deferred.reject);
+                                    }).bind(this), deferred.reject);
+                                } else {
+                                    deferred = this.ajax(request);
+                                }
+
+                                return deferred;
+                            };
+
+                            AuthenticatedHttp.prototype.augmentRequest = function (request) {
+                                if (!request.headers) {
+                                    request.headers = {};
+                                }
+
+                                if (!request.headers['Accept']) {
+                                    request.headers['Accept'] = this._accept;
+                                }
+
+                                if (!request.headers['Content-Type']) {
+                                    request.headers['Content-Type'] = this._contentType;
+                                }
+
+                                if (request.disableCache || this._disableCache) {
+                                    request.requestUri += (request.requestUri.indexOf('?') >= 0 ? '&' : '?') + '_=' + this._noCache++;
+                                }
+                            };
+                            return AuthenticatedHttp;
+                        })();
+                        HttpHelpers.AuthenticatedHttp = AuthenticatedHttp;
+                    })(Utility.HttpHelpers || (Utility.HttpHelpers = {}));
+                    var HttpHelpers = Utility.HttpHelpers;
+                })(Microsoft.Utility || (Microsoft.Utility = {}));
+                var Utility = Microsoft.Utility;
+            })(module.exports);
+
+            /**
+             * Pads a string at the right to specified length with specified string
+             *
+             * @param  {String} str Input string to be padded
+             *
+             * @param  {Number} n   Resulting length
+             *
+             * @param  {String} pad String to pad with
+             *
+             * @return {String}     Right-padded string
+             */
+            function padRight(str, n, pad) {
+                var temp = str;
+
+                if (n > str.length) {
+                    for (var i = 0; i < n - str.length; i++) {
+                        temp += pad;
+                    }
+                }
+
+                return temp;
+            }
+
+            /**
+             * Converts Base64URL to Base64 encoded string
+             *
+             * @param  {String} jwt Base64URL encoded string
+             *
+             * @return {String}     Base64 encoded string with applied '=' right padding
+             */
+            function base64UrlToBase64(b64Url) {
+                b64Url = padRight(b64Url, b64Url.length + (4 - b64Url.length % 4) % 4, '=');
+                return b64Url.replace(/-/g, '+').replace(/_/g, '/');
+            }
+
+            /**
+             * Decodes the Base64-encoded value into a string with correct utf8 encoding support.
+             * See for more details: https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/Base64_encoding_and_decoding#The_Unicode_Problem
+             * 
+             * @param  {String} str Base64-encoded string to decode
+             * 
+             * @return {String}     Decoded string
+             *
+             */
+            function b64DecodeUnicode(str) {
+                return decodeURIComponent(Array.prototype.map.call(atob(str), function (c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+            }
+
+            /**
+             * Parses a valid JWT token into JSON representation.
+             * This method doesn't validate/encode token.
+             *
+             * @param  {String} jwt Raw JWT token string
+             *
+             * @return {Object}     Raw object that contains data from token
+             */
+            function parseJWT(jwt) {
+
+                var jwtParseError = new Error("Error parsing JWT token.");
+
+                var jwtParts = jwt.split('.');
+                if (jwtParts.length !== 3) {
+                    throw jwtParseError;
+                }
+
+                var jwtBody = jwtParts[1];
+                jwtBody = base64UrlToBase64(jwtBody);
+
+                try {
+                    return JSON.parse(b64DecodeUnicode(jwtBody));
+                } catch (e) {
+                    throw jwtParseError;
+                }
+            }
+
+            module.exports.extends = __extends;
+
+            module.exports.parseJWT = parseJWT;
+
+        });
     };
 
     var _fnCordovaCommon = function (CORDOVA_JS_BUILD_LABEL) {
@@ -8555,6 +9602,39 @@
                 ]
             }];
 
+            var arrAdal = [{
+                "file": "plugins/cordova-plugin-ms-adal/www/utility.js",
+                "id": "cordova-plugin-ms-adal.utility",
+                "runs": true
+            }, {
+                "file": "plugins/cordova-plugin-ms-adal/www/AuthenticationContext.js",
+                "id": "cordova-plugin-ms-adal.AuthenticationContext",
+                "clobbers": [
+                    "Microsoft.ADAL.AuthenticationContext"
+                ]
+            }, {
+                "file": "plugins/cordova-plugin-ms-adal/www/CordovaBridge.js",
+                "id": "cordova-plugin-ms-adal.CordovaBridge"
+            }, {
+                "file": "plugins/cordova-plugin-ms-adal/www/AuthenticationResult.js",
+                "id": "cordova-plugin-ms-adal.AuthenticationResult"
+            }, {
+                "file": "plugins/cordova-plugin-ms-adal/www/TokenCache.js",
+                "id": "cordova-plugin-ms-adal.TokenCache"
+            }, {
+                "file": "plugins/cordova-plugin-ms-adal/www/TokenCacheItem.js",
+                "id": "cordova-plugin-ms-adal.TokenCacheItem"
+            }, {
+                "file": "plugins/cordova-plugin-ms-adal/www/UserInfo.js",
+                "id": "cordova-plugin-ms-adal.UserInfo"
+            }, {
+                "file": "plugins/cordova-plugin-ms-adal/www/AuthenticationSettings.js",
+                "id": "cordova-plugin-ms-adal.AuthenticationSettings",
+                "clobbers": [
+                    "Microsoft.ADAL.AuthenticationSettings"
+                ]
+            }];
+
 
             var arrPluginList = [];
             var objPluginMeta = {
@@ -8651,6 +9731,9 @@
 
             // SSL Certificate Checker
             arrPluginList = arrPluginList.concat(arrSSLCertChecker);
+
+            // ADAL
+            arrPluginList = arrPluginList.concat(arrAdal);
 
             module.exports = arrPluginList;
             module.exports.metadata = objPluginMeta;
