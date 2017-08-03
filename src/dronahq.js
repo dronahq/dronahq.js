@@ -8,10 +8,11 @@
     var DronaHQ = {};
 
     //Check device type
-    DronaHQ.onIos = /(iPad|iPhone|iPod)/i.test(window.navigator.userAgent);
-    DronaHQ.onAndroid = /Android/i.test(window.navigator.userAgent);
-    DronaHQ.onBlackBerry = /(BlackBerry|BB10)/i.test(window.navigator.userAgent);
-    DronaHQ.onWindowsPhone = /Windows Phone/i.test(window.navigator.userAgent);
+    var userAgent = window.navigator.userAgent;
+    DronaHQ.onIos = /(iPad|iPhone|iPod)/i.test(userAgent);
+    DronaHQ.onAndroid = /Android/i.test(userAgent);
+    DronaHQ.onWindowsPhone = /Windows Phone 8/i.test(userAgent);
+    DronaHQ.onWin10 = /Windows Phone 10|Windows NT 10/i.test(userAgent);
 
     DronaHQ.IsReady = false;
     DronaHQ.plugins = {
@@ -6976,7 +6977,7 @@
                 }
                 exec(successCallback, errorCallback, "SSLCertificateChecker", "check", [serverURL, false, fpArr]);
             };
-            
+
             var sslCertificateChecker = new SSLCertificateChecker();
             module.exports = sslCertificateChecker;
         });
@@ -10981,6 +10982,123 @@
         _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
     };
 
+    var _fnCordovaWin10 = function () {
+        // Platform: Windows 10
+
+        /*
+         Licensed to the Apache Software Foundation (ASF) under one
+         or more contributor license agreements.  See the NOTICE file
+         distributed with this work for additional information
+         regarding copyright ownership.  The ASF licenses this file
+         to you under the Apache License, Version 2.0 (the
+         "License"); you may not use this file except in compliance
+         with the License.  You may obtain a copy of the License at
+    
+             http://www.apache.org/licenses/LICENSE-2.0
+    
+         Unless required by applicable law or agreed to in writing,
+         software distributed under the License is distributed on an
+         "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+         KIND, either express or implied.  See the License for the
+         specific language governing permissions and limitations
+         under the License.
+        */
+
+        var CORDOVA_JS_BUILD_LABEL = '3.6.3';
+
+        define("cordova/exec", function (require, exports, module) {
+            var cordova = require('cordova'),
+                channel = require('cordova/channel'),
+                utils = require('cordova/utils'),
+                base64 = require('cordova/base64'),
+                commandQueue = [], // Contains pending JS->Native messages.
+                isInContextOfEvalJs = 0;
+
+            function massageArgsJsToNative(args) {
+                if (!args || utils.typeName(args) != 'Array') {
+                    return args;
+                }
+                var ret = [];
+                args.forEach(function (arg, i) {
+                    if (utils.typeName(arg) == 'ArrayBuffer') {
+                        ret.push({
+                            'CDVType': 'ArrayBuffer',
+                            'data': base64.fromArrayBuffer(arg)
+                        });
+                    } else {
+                        ret.push(arg);
+                    }
+                });
+                return ret;
+            };
+
+            function pokeNativeViaURI() {
+                // Navigate webview to gap://ready URI.
+                // This will get captured on the native side,
+                // and will get handled from there.
+
+                window.location.href = "dhq-cordova://ready?agent=" + userAgent;
+            };
+
+            function win10Exec(success, fail, service, action, args) {
+                args = args || [];
+
+                // Register the callbacks and add the callbackId to the positional
+                // arguments if given.
+                callbackId = service + cordova.callbackId++;
+                if (success || fail) {
+                    cordova.callbacks[callbackId] = {
+                        success: success,
+                        fail: fail
+                    };
+                }
+
+                args = massageArgsJsToNative(args);
+
+                var command = [callbackId, service, action, args];
+
+                // Stringify and queue the command. We stringify to command now to
+                // effectively clone the command arguments in case they are mutated before
+                // the command is executed.
+                commandQueue.push(JSON.stringify(command));
+
+                // If we're in the context of a stringByEvaluatingJavaScriptFromString call,
+                // then the queue will be flushed when it returns; no need for a poke.
+                // Also, if there is already a command in the queue, then we've already
+                // poked the native side, so there is no reason to do so again.
+                if (!isInContextOfEvalJs && commandQueue.length == 1) {
+                    pokeNativeViaURI();
+                }
+            };
+
+            win10Exec.nativeFetchMessages = function () {
+                // Each entry in commandQueue is a JSON string already.
+                if (!commandQueue.length) {
+                    return '';
+                }
+                var json = '[' + commandQueue.join(',') + ']';
+                commandQueue.length = 0;
+                commandQueue = [];
+                return json;
+            };
+
+            module.exports = win10Exec;
+        });
+
+        define("cordova/platform", function (require, exports, module) {
+
+            module.exports = {
+                id: 'win10',
+                bootstrap: function () {
+
+                }
+            };
+
+        });
+
+        _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
+    };
+
     var _fnCordovaBrowserPlugin = function () {
         //       
     };
@@ -11232,6 +11350,8 @@
                 DronaHQ.plugins.geo = false;
 
                 _fnCordovaBrowser();
+            } else if (DronaHQ.onWin10) {
+                _fnCordovaWin10();
             }
         }
     };
