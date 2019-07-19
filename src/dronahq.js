@@ -1,18 +1,27 @@
 /*
-	DronaHQ Native Container SDK - v6.3.1
+    DronaHQ Native Container SDK - v7.0.10
+    Author: Mohit Agarwal
+    Date: 11/07/2019
 */
-
 ;
 (function () {
-
     var DronaHQ = {};
 
     //Check device type
     var userAgent = window.navigator.userAgent;
     DronaHQ.onIos = /(iPad|iPhone|iPod)/i.test(userAgent);
-    DronaHQ.onAndroid = /Android/i.test(userAgent);
+    DronaHQ.onAndroid = /Crosswalk/i.test(userAgent);
     DronaHQ.onWindowsPhone = /Windows Phone 8/i.test(userAgent);
     DronaHQ.onWin10 = /Windows Phone 10|Windows NT 10/i.test(userAgent);
+    DronaHQ.onElectron = /Electron/i.test(userAgent);
+
+
+    //REFER CL #1
+    //If 'Drona' is not present in userAgent, will treat current session as Web Session
+    if ((userAgent.indexOf('Drona')) === -1) {
+        DronaHQ.onIos = DronaHQ.onAndroid = DronaHQ.onWindowsPhone = DronaHQ.onWin10 = DronaHQ.onElectron = false;
+    }
+    //REFER CL #1 END
 
     DronaHQ.IsReady = false;
     DronaHQ.plugins = {
@@ -25,6 +34,7 @@
         geo: false, //We only need this on iOS,
         sqlite: true,
         keyboard: false,
+        DecimalKeyboard: true,
         kvstorage: true,
         localnotification: true,
         calendar: false
@@ -42,8 +52,6 @@
             // Map of module ID -> index into requireStack of modules currently being built.
             inProgressModules = {},
             SEPARATOR = ".";
-
-
 
         function build(module) {
             var factory = module.factory,
@@ -187,7 +195,6 @@
             };
 
             module.exports = new Device();
-
         });
 
         //Camera
@@ -229,7 +236,7 @@
             /**
              * Gets a picture from source defined by "options.sourceType", and returns the
              * image as defined by the "options.destinationType" option.
-      
+
              * The defaults are sourceType=CAMERA and destinationType=FILE_URI.
              *
              * @param {Function} successCallback
@@ -268,7 +275,6 @@
             };
 
             module.exports = cameraExport;
-
         });
         cordova.define("cordova-plugin-camera.Camera", function (require, exports, module) {
             /*
@@ -324,7 +330,6 @@
                     FRONT: 1
                 }
             };
-
         });
         cordova.define("cordova-plugin-camera.CameraPopoverHandle", function (require, exports, module) {
             /*
@@ -360,7 +365,6 @@
             };
 
             module.exports = CameraPopoverHandle;
-
         });
         cordova.define("cordova-plugin-camera.CameraPopoverOptions", function (require, exports, module) {
             /*
@@ -400,7 +404,6 @@
             };
 
             module.exports = CameraPopoverOptions;
-
         });
 
         //InAppBrowser
@@ -508,8 +511,6 @@
                 exec(cb, cb, "InAppBrowser", "open", [strUrl, strWindowName, strWindowFeatures]);
                 return iab;
             };
-
-
         });
 
         //DronaHQ User
@@ -553,9 +554,11 @@
                 argscheck.checkArgs('fF', 'DronaHQ.getProfile', arguments);
                 exec(successCallback, errorCallback, "DronaHQ", "getUserProfile", []);
             };
+            User.prototype.setLoginDetails = function (successCallback, errorCallback, cookieVal) {
+                exec(successCallback, errorCallback, "DronaHQ", "setLoginViaOAuthDetails", [cookieVal]);
+            };
 
             module.exports = new User();
-
         });
 
         //DronaHQ Notification
@@ -589,6 +592,10 @@
                 exec = require('cordova/exec'),
                 cordova = require('cordova');
 
+            //Add custom document events
+            cordova.addDocumentEventHandler('dronahq.app.profileupdate');//Fingers Crossed
+            cordova.addDocumentEventHandler('dronahq.app.dronahqresumewithdata');//To Get Deep Link Data
+
             function App() { };
 
             App.prototype.navigate = function (objNavigate) {
@@ -598,8 +605,9 @@
                 var destId = objNavigate.dest_id || '0';
                 var folderCatId = objNavigate.folder_id || '0';
                 var destType = objNavigate.dest_type || '';
+                var parameter = objNavigate.parameter || '';
 
-                var args = [destination, destId, destType, folderCatId];
+                var args = [destination, destId, destType, folderCatId, parameter];
 
                 exec(null, null, "DronaHQ", "navigation", args);
             };
@@ -608,44 +616,99 @@
                 exec(null, null, "DronaHQ", "exitApp", []);
             };
 
-            App.prototype.getHomeScreen = function (successCallback, errorCallback) {
-                exec(successCallback, errorCallback, "DronaHQ", "getHomeScreenIcons", []);
+            App.prototype.handleMedia = function(successCallback, errorCallback, mediaUrl, mediaType, options) {
+                var androidPackageName, iOSURLscheme = "";
+                if (options) {
+                    androidPackageName = options.androidPackageName || "";
+                    iOSURLscheme = options.iOSURLscheme || "";
+                }
+                exec(successCallback, errorCallback, "DronaHQ", "handleMedia", [mediaUrl, mediaType, androidPackageName, iOSURLscheme]);
             }
 
-            App.prototype.getMeta = function (successCallback, errorCallback) {
-                exec(successCallback, errorCallback, "DronaHQ", "getApplicationDetails", []);
+
+            App.prototype.setStatusBarColor = function (successCallback, errorCallback, objStatusBar) {
+
+                var isHidden = objStatusBar.StatusBarToBeHidden || '';
+                var isGradient = objStatusBar.isGradientColor || '';
+                var color1 = objStatusBar.color1 || '';
+                var color2 = objStatusBar.color2 || '';
+                var cordinate1 = objStatusBar.firstCordinate || '';
+                var cordinate2 = objStatusBar.secondCordinate || '';
+
+                exec(successCallback, errorCallback, "DronaHQ", "setStatusBarColor", [isHidden, isGradient, color1, color2, cordinate1, cordinate2]);
             }
 
-            App.prototype.getApp = function (successCallback, errorCallback) {
-                exec(successCallback, errorCallback, "DHQApp", "getAppDetails", []);
+            App.prototype.setBottomBarColor = function (successCallback, errorCallback, objBottomBar) {
+
+                var isHidden = objBottomBar.StatusBarToBeHidden || '';
+                var isGradient = objBottomBar.isGradientColor || '';
+                var color1 = objBottomBar.color1 || '';
+                var color2 = objBottomBar.color2 || '';
+                var cordinate1 = objBottomBar.firstCordinate || '';
+                var cordinate2 = objBottomBar.secondCordinate || '';
+
+                exec(successCallback, errorCallback, "DronaHQ", "setBottomBarColor", [isHidden, isGradient, color1, color2, cordinate1, cordinate2]);
             }
 
-            App.prototype.setRating = function (successCallback, errorCallback, appRating) {
-                exec(successCallback, errorCallback, "DHQApp", "setAppRating", [appRating]);
+            App.prototype.resetiPhoneXColor = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "resetiPhoneXColor", []);
+            }
+            App.prototype.setStatusBar = function (successCallback, errorCallback, objStatusBar) {
+
+                var isHidden = objStatusBar.StatusBarToBeHidden || false;
+                var color1 = objStatusBar.color1 || "d5d5d5";
+                var color2 = objStatusBar.color2 || '';
+                var isTextThemeDark  = objStatusBar.isTextThemeDark || true;
+                exec(successCallback, errorCallback, "DronaHQ", "setStatusBar", [isHidden,color1, color2,isTextThemeDark]);
             }
 
-            App.prototype.setAsFav = function (successCallback, errorCallback, isFav) {
-                exec(successCallback, errorCallback, "DHQApp", "setAppAsFav", [isFav]);
+            App.prototype.setBottomBar = function (successCallback, errorCallback, objBottomBar) {
+
+                var isHidden = objBottomBar.StatusBarToBeHidden || '';
+                var color1 = objBottomBar.color1 || '';
+                var color2 = objBottomBar.color2 || '';
+
+                exec(successCallback, errorCallback, "DronaHQ", "setBottomBar", [isHidden, color1, color2]);
+            }
+            App.prototype.resetStatusBarAndBottomBar = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "resetStatusBarAndBottomBar", []);
             }
 
-            App.prototype.getFeedback = function (successCallback, errorCallback, maxId, resultSize) {
-                exec(successCallback, errorCallback, "DHQApp", "getAppFeedbackList", [maxId, resultSize]);
+            App.prototype.openAppBugFeedback = function (successCallback, errorCallback, type, title,description) {
+                exec(successCallback, errorCallback, "DHQApp", "openBugFeedbackScreen", [type, title, description]);
             }
 
-            App.prototype.setFeedback = function (successCallback, errorCallback, feedbackText) {
-                exec(successCallback, errorCallback, "DHQApp", "setAppFeedback", [feedbackText]);
+            App.prototype.getAppBugFeedback  = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DHQApp", "getBugFeedbackScreenDetails", []);
             }
 
-            App.prototype.handleMedia = function (successCallback, errorCallback, mediaUrl, mediaType, options) {
-                exec(successCallback, errorCallback, "DronaHQ", "handleMedia", [mediaUrl, mediaType]);
+            App.prototype.submitBugFeedbackData = function (successCallback, errorCallback, type, title, desc, image) {
+                exec(successCallback, errorCallback, "DHQApp", "submitBugFeedbackData", [type, title, desc, image]);
+
             }
+            App.prototype.passDeepLinkDataCallback = function (successCallback, errorCallback, data) {
+                exec(successCallback, errorCallback, "DronaHQ", "passDeepLinkDataCallback", [data]);
+            }
+
+            App.prototype.exitAllApps = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "exitAllApps", []);
+            }
+
+            App.prototype.getDeepLinkData = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "getDeepLinkData", []);
+            }
+
+            //CL2 exitContainer function added, Closes Container 
+            App.prototype.exitContainer = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "exitContainer", []);
+            }
+            //CL2 END
 
             module.exports = new App();
         });
 
         //DronaHQ Sync
         cordova.define("cordova-plugin-dronahq.sync", function (require, exports, module) {
-
             var argscheck = require('cordova/argscheck'),
                 channel = require('cordova/channel'),
                 utils = require('cordova/utils'),
@@ -653,7 +716,12 @@
                 cordova = require('cordova');
 
             //Add custom document events
-            cordova.addDocumentEventHandler('dronahq.sync.uploadcomplete'); //All uploads complete            
+            cordova.addDocumentEventHandler('dronahq.sync.uploadcomplete'); //All uploads complete
+            cordova.addDocumentEventHandler('dronahq.sync.complete'); //All uploads complete
+
+            //cordova.addDocumentEventHandler('dronahq.sync.DBChanged'); //CouchDB change trigger
+            cordova.addDocumentEventHandler('dronahq.sync.microappdbchanged'); //CouchDB change trigger
+            cordova.addDocumentEventHandler('dronahq.sync.channeldbchanged'); //CouchDB change trigger
 
             function Sync() { };
 
@@ -683,9 +751,63 @@
                 exec(successCallback, errorCallback, "DronaHQ", "getPendingUploadCount", []);
             };
 
+            //OFFLINE SYNC 07/18
+            Sync.prototype.getOfflinePendingSyncData = function(successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "getOfflinePendingSyncData", []);
+            };
+            Sync.prototype.addRequest = function(successCallback, errorCallback, newRequestData) {
+                exec(successCallback, errorCallback, "DronaHQ", "uploadMultipleRequest", [newRequestData]);
+            }
+            Sync.prototype.removeRequest = function(successCallback, errorCallback, id) {
+                exec(successCallback, errorCallback, "DronaHQ", "removeOfflineSync", [id]);
+            }
+            Sync.prototype.triggerSync = function(successCallback, errorCallback, refreshType) {
+                // var refreshType = refreshType || "";
+                exec(successCallback, errorCallback, "DronaHQ", "triggerOfflineSync", []);
+            }
+            Sync.prototype.getPurgeData = function(successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "getAutoPurgeData", []);
+            }
+            Sync.prototype.getAllPendingRequest = function(successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DronaHQ", "getOfflinePendingSyncData", []);
+            };
+            Sync.prototype.getRequestDetails = function(successCallback, errorCallback, id) {
+                exec(successCallback, errorCallback, "DronaHQ", "getOfflineRequestDetails", [id]);
+            }
+            //OFFLINE SYNC 07/18 END
+
+            Sync.prototype.getChannelDB = function(successCallback,errorCallback){
+                exec(successCallback, errorCallback, "DHQStorage", "getChannelDB", []);
+            };
+
+            Sync.prototype.getAppDB = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DHQStorage", "getAppDB", []);
+            };
+            Sync.prototype.getDocument = function (successCallback, errorCallback, documentName, query, apikey, documentType, filterMode, isChannelDoc, skip, limit, fields, sort) {
+                var documentName = documentName || "";
+                var query = query || "";
+                var apikey = apikey || "";
+                var documentType = documentType || "record";
+                var filterMode = filterMode || 3;
+                var isChannelDoc = isChannelDoc || false;
+                var skip = skip || 0;
+                var limit = limit || 0;
+                var fields = fields || null;
+                var sort = sort || null;
+                exec(successCallback, errorCallback, "DHQStorage", "getDocument", [documentName, query, apikey, documentType, filterMode, isChannelDoc, skip, limit, fields, sort]);
+            };
+            Sync.prototype.enableLiveCouchDBChanges = function (successCallback, errorCallback, isEnableCouchSync, pollingFrequency) {
+                exec(successCallback, errorCallback, "DronaHQ", "enableLiveCouchDBChanges", [isEnableCouchSync, pollingFrequency]);
+            };
+            Sync.prototype.getFilteredDocument = function (successCallback, errorCallback,arrKeyNames, arrKeyValues, arrFilterKeys) {
+                exec(successCallback, errorCallback, "DHQStorage", "getFilteredDocument", [arrKeyNames, arrKeyValues, arrFilterKeys]);
+            };
+            Sync.prototype.getDBDetails = function (successCallback, errorCallback) {
+                exec(successCallback, errorCallback, "DHQStorage", "getDBDetails", []);
+            };
+
             module.exports = new Sync();
         });
-
         //DronaHQ KVStore
         cordova.define("cordova-plugin-dronahq.kvstore", function (require, exports, module) {
             var argscheck = require('cordova/argscheck'),
@@ -725,6 +847,710 @@
             module.exports = new KVStore();
         });
 
+        //Cordova Text-to-Speech
+        //https://github.com/dronahq/cordova-plugin-tts
+        cordova.define("cordova-plugin-tts",function(require, exports, module){
+            exports.speak = function (text) {
+                return new Promise(function (resolve, reject) {
+                    var options = {};
+            
+                    if (typeof text == 'string') {
+                        options.text = text;
+                    } else {
+                        options = text;
+                    }
+            
+                    cordova.exec(resolve, reject, 'TTS', 'speak', [options]);
+                });
+            };
+            
+            exports.stop = function() {
+                return new Promise(function (resolve, reject) {
+                    cordova.exec(resolve, reject, 'TTS', 'stop', []);
+                });
+            };
+            
+            exports.checkLanguage = function() {
+                return new Promise(function (resolve, reject) {
+                    cordova.exec(resolve, reject, 'TTS', 'checkLanguage', []);
+                });
+            };
+            
+            exports.openInstallTts = function() {
+                return new Promise(function (resolve, reject) {
+                    cordova.exec(resolve, reject, 'TTS', 'openInstallTts', []);
+                });
+            };
+        });
+        
+
+        //Cordova nativestorage
+        //https://github.com/dronahq/cordova-plugin-nativestorage
+        cordova.define('cordova-plugin-nativestorage.mainHandle',function(require, exports, module){
+            var inBrowser = false;
+            var NativeStorageError = require('./NativeStorageError');
+            
+            
+            function isInBrowser() {
+              inBrowser = (window.cordova && (window.cordova.platformId === 'browser' || window.cordova.platformId === 'osx')) || !(window.phonegap || window.cordova);
+              return inBrowser;
+            }
+            
+            function storageSupportAnalyse() {
+              if (!isInBrowser()) {
+                return 0;
+              //storageHandlerDelegate = exec;
+              } else {
+                if (window.localStorage) {
+                  return 1;
+                //storageHandlerDelegate = localStorageHandle;
+                } else {
+                  return 2;
+                //console.log("ALERT! localstorage isn't supported");
+                }
+              }
+            }
+            
+            //if storage not available gracefully fails, no error message for now
+            function StorageHandle() {
+              this.storageSupport = storageSupportAnalyse();
+              switch (this.storageSupport) {
+                case 0:
+                  var exec = require('cordova/exec');
+                  this.storageHandlerDelegate = exec;
+                  break;
+                case 1:
+                  var localStorageHandle = require('./LocalStorageHandle');
+                  this.storageHandlerDelegate = localStorageHandle;
+                  break;
+                case 2:
+                  console.log("ALERT! localstorage isn't supported");
+                  break;
+                default:
+                  console.log("StorageSupport Error");
+                  break;
+              }
+            }
+            
+            StorageHandle.prototype.initWithSuiteName = function(suiteName, success, error) {
+              if (suiteName === null) {
+                error("Null suiteName isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(success, error, "NativeStorage", "initWithSuiteName", [suiteName]);
+            };
+            
+            StorageHandle.prototype.set = function(reference, value, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("The reference can't be null");
+                return;
+              }
+              if (value === null) {
+                error("a Null value isn't supported");
+                return;
+              }
+              switch (typeof value) {
+                case 'undefined':
+                  error("an undefined type isn't supported");
+                  break;
+                case 'boolean': {
+                  this.putBoolean(reference, value, success, error);
+                  break;
+                }
+                case 'number': {
+                  // Good now check if it's a float or an int
+                  if (value === +value) {
+                    if (value === (value | 0)) {
+                      // it's an int
+                      this.putInt(reference, value, success, error);
+                    } else if (value !== (value | 0)) {
+                      this.putDouble(reference, value, success, error);
+                    }
+                  } else {
+                    error("The value doesn't seem to be a number");
+                  }
+                  break;
+                }
+                case 'string': {
+                  this.putString(reference, value, success, error);
+                  break;
+                }
+                case 'object': {
+                  this.putObject(reference, value, success, error);
+                  break;
+                }
+                default:
+                  error("The type isn't supported or isn't been recognized");
+                  break;
+              }
+            };
+            
+            /* removing */
+            StorageHandle.prototype.remove = function(reference, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+            
+              if (inBrowser) {
+                try {
+                  localStorage.removeItem(reference);
+                  success();
+                } catch (e) {
+                  error(e);
+                }
+              } else {
+                this.storageHandlerDelegate(success, error, "NativeStorage", "remove", [reference]);
+              }
+            };
+            
+            /* clearing */
+            StorageHandle.prototype.clear = function(success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (inBrowser) {
+                try {
+                  localStorage.clear();
+                  success();
+                } catch (e) {
+                  error(e);
+                }
+              } else {
+                this.storageHandlerDelegate(success, error, "NativeStorage", "clear", []);
+              }
+            };
+            
+            
+            /* boolean storage */
+            StorageHandle.prototype.putBoolean = function(reference, aBoolean, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+            
+              if (aBoolean === null) {
+                error("a Null value isn't supported");
+                return;
+              }
+            
+              if (typeof aBoolean === 'boolean') {
+                this.storageHandlerDelegate(function(returnedBool) {
+                  if ('string' === typeof returnedBool) {
+                    if ( (returnedBool === 'true') ) {
+                      success(true);
+                    } else if ( (returnedBool === 'false') ) {
+                      success(false);
+                    } else {
+                      error("The returned boolean from SharedPreferences was not recognized: " + returnedBool);
+                    }
+                  } else {
+                    success(returnedBool);
+                  }
+                }, error, "NativeStorage", "putBoolean", [reference, aBoolean]);
+              } else {
+                error("Only boolean types are supported");
+              }
+            };
+            
+            
+            StorageHandle.prototype.getBoolean = function(reference, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(function(returnedBool) {
+                if ('string' === typeof returnedBool) {
+                  if ( (returnedBool === 'true') ) {
+                    success(true);
+                  } else if ( (returnedBool === 'false') ) {
+                    success(false);
+                  } else {
+                    error("The returned boolean from SharedPreferences was not recognized: " + returnedBool);
+                  }
+                } else {
+                  success(returnedBool);
+                }
+              }, error, "NativeStorage", "getBoolean", [reference]);
+            };
+            
+            /* int storage */
+            StorageHandle.prototype.putInt = function(reference, anInt, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(success, error, "NativeStorage", "putInt", [reference, anInt]);
+            };
+            
+            StorageHandle.prototype.getInt = function(reference, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(success, error, "NativeStorage", "getInt", [reference]);
+            };
+            
+            
+            /* float storage */
+            StorageHandle.prototype.putDouble = function(reference, aFloat, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(success, error, "NativeStorage", "putDouble", [reference, aFloat]);
+            };
+            
+            StorageHandle.prototype.getDouble = function(reference, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(function(data) {
+                if (isNaN(data)) {
+                  error('Expected double but got non-number');
+                } else {
+                  success(parseFloat(data));
+                }
+              }, error, "NativeStorage", "getDouble", [reference]);
+            };
+            
+            /* string storage */
+            StorageHandle.prototype.putString = function(reference, s, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(success, error, "NativeStorage", "putString", [reference, s]);
+            };
+            
+            StorageHandle.prototype.getString = function(reference, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error("Null reference isn't supported");
+                return;
+              }
+              this.storageHandlerDelegate(success, error, "NativeStorage", "getString", [reference]);
+            };
+            
+            /* object storage  COMPOSITE AND DOESNT CARE FOR BROWSER*/
+            StorageHandle.prototype.putObject = function(reference, obj, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              var objAsString = "";
+              try {
+                objAsString = JSON.stringify(obj);
+              } catch (err) {
+                error(err);
+              }
+              this.putString(reference, objAsString, function(data) {
+                var obj = {};
+                try {
+                  obj = JSON.parse(data);
+                  success(obj);
+                } catch (err) {
+                  error(err);
+                }
+              }, error);
+            };
+            
+            StorageHandle.prototype.getObject = function(reference, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              this.getString(reference, function(data) {
+                var obj = {};
+                try {
+                  obj = JSON.parse(data);
+                  success(obj);
+                } catch (err) {
+                  error(err);
+                }
+              }, error);
+            };
+            
+            /* API >= 2 */
+            StorageHandle.prototype.setItem = function(reference, obj, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              var objAsString = "";
+              try {
+                objAsString = JSON.stringify(obj);
+              } catch (err) {
+                error(new NativeStorageError(NativeStorageError.JSON_ERROR, "JS", err));
+                return;
+              }
+              if (reference === null) {
+                error(new NativeStorageError(NativeStorageError.NULL_REFERENCE, "JS", ""));
+                return;
+              }
+              this.storageHandlerDelegate(function(data) {
+                try {
+                  obj = JSON.parse(data);
+                  success(obj);
+                } catch (err) {
+                  error(new NativeStorageError(NativeStorageError.JSON_ERROR, "JS", err));
+                }
+              }, function(code) {
+                error(new NativeStorageError(code, "Native", ""));
+              }, "NativeStorage", "setItem", [reference, objAsString]);
+            };
+            
+            StorageHandle.prototype.getItem = function(reference, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error(new NativeStorageError(NativeStorageError.NULL_REFERENCE, "JS", ""));
+                return;
+              }
+              var obj = {};
+            
+              this.storageHandlerDelegate(
+                function(data) {
+                  try {
+                    obj = JSON.parse(data);
+                    success(obj);
+                  } catch (err) {
+                    error(new NativeStorageError(NativeStorageError.JSON_ERROR, "JS", err));
+                  }
+                },
+                function(code) {
+                  error(new NativeStorageError(code, "Native", ""));
+                }, "NativeStorage", "getItem", [reference]);
+            };
+            
+            /* API >= 2 */
+            StorageHandle.prototype.setSecretItem = function(reference, obj, encryptConfig, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              var objAsString = "";
+              try {
+                objAsString = JSON.stringify(obj);
+              } catch (err) {
+                error(new NativeStorageError(NativeStorageError.JSON_ERROR, "JS", err));
+                return;
+              }
+              if (reference === null) {
+                error(new NativeStorageError(NativeStorageError.NULL_REFERENCE, "JS", ""));
+                return;
+              }
+            
+              var action = "setItem";
+              var params = [reference, objAsString];
+              switch (encryptConfig.mode) {
+                case "password":
+                  action = "setItemWithPassword";
+                  params = [reference, objAsString, encryptConfig.value];
+                  break;
+                case "key":
+                  action = "setItemWithKey";
+                  break;
+                case "none":
+                  break;
+                default: {
+                  error(new NativeStorageError(NativeStorageError.WRONG_PARAMETER, "JS", ""));
+                  return;
+                }
+              }
+              this.storageHandlerDelegate(function(data) {
+                try {
+                  obj = JSON.parse(data);
+                  success(obj);
+                } catch (err) {
+                  error(new NativeStorageError(NativeStorageError.JSON_ERROR, "JS", err));
+                }
+              }, function(code) {
+                error(new NativeStorageError(code, "Native", ""));
+              }, "NativeStorage", action, params);
+            };
+            
+            StorageHandle.prototype.getSecretItem = function(reference, encryptConfig, success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              if (reference === null) {
+                error(new NativeStorageError(NativeStorageError.NULL_REFERENCE, "JS", ""));
+                return;
+              }
+              var obj = {};
+            
+              var action = "getItem";
+              var params = [reference];
+              switch (encryptConfig.mode) {
+                case "password":
+                  action = "getItemWithPassword";
+                  params = [reference, encryptConfig.value];
+                  break;
+                case "key":
+                  action = "getItemWithKey";
+                  break;
+                case "none":
+                  break;
+                default: {
+                  error(new NativeStorageError(NativeStorageError.WRONG_PARAMETER, "JS", ""));
+                  return;
+                }
+              }
+            
+              this.storageHandlerDelegate(
+                function(data) {
+                  try {
+                    obj = JSON.parse(data);
+                    success(obj);
+                  } catch (err) {
+                    error(new NativeStorageError(NativeStorageError.JSON_ERROR, "JS", err));
+                  }
+                },
+                function(code) {
+                  error(new NativeStorageError(code, "Native", ""));
+                }, "NativeStorage", action, params);
+            };
+            
+            /* list keys */
+            StorageHandle.prototype.keys = function(success, error) {
+            
+              //if error is null then replace with empty function to silence warnings
+              if(!error){
+                error = function(){};
+              }
+            
+              this.storageHandlerDelegate(success, error, "NativeStorage", "keys", []);
+            };
+            
+            
+            var storageHandle = new StorageHandle();
+            module.exports = storageHandle;
+        });
+    
+        cordova.define('cordova-plugin-nativestorage.NativeStorageError',function(require, exports, module){
+            var NativeStorageError = function(code, source, exception) {
+                this.code = code || null;
+                this.source = source || null;
+                this.exception = exception || null;
+            };
+
+            // Make NativeStorageError a real Error, you can test with `instanceof Error`
+            NativeStorageError.prototype = Object.create(Error.prototype, {
+            constructor: { value: NativeStorageError }
+            });
+
+            NativeStorageError.NATIVE_WRITE_FAILED = 1;
+            NativeStorageError.ITEM_NOT_FOUND = 2;
+            NativeStorageError.NULL_REFERENCE = 3;
+            NativeStorageError.UNDEFINED_TYPE = 4;
+            NativeStorageError.JSON_ERROR = 5;
+            NativeStorageError.WRONG_PARAMETER = 6;
+
+            module.exports = NativeStorageError;
+        });
+
+        cordova.define('cordova-plugin-nativestorage.LocalStorageHandle',function(require, exports, module){
+            var NativeStorageError = require('./NativeStorageError');
+
+            // args = [reference, variable]
+            function LocalStorageHandle(success, error, intent, operation, args) {
+                var reference = args[0];
+                var variable = args[1];
+
+                if (operation.startsWith('put') || operation.startsWith('set')) {
+                    try {
+                        var varAsString = JSON.stringify(variable);
+                        if (reference === null) {
+                            error(NativeStorageError.NULL_REFERENCE);
+                            return;
+                        }
+                        localStorage.setItem(reference, varAsString);
+                        success(variable);
+                    } catch (err) {
+                        error(NativeStorageError.JSON_ERROR);
+                    }
+                } else if (operation.startsWith('get')) {
+                    var item = {};
+                    item = localStorage.getItem(reference);
+                    if (item === null) {
+                        error(NativeStorageError.ITEM_NOT_FOUND);
+                        return;
+                    }
+                    try {
+                        var obj = JSON.parse(item);
+                        //console.log("LocalStorage Reading: "+obj);
+                        success(obj);
+                    } catch (err) {
+                        error(NativeStorageError.JSON_ERROR);
+                    }
+                } else if (operation === 'keys') {
+                var keys = [];
+                for(var i = 0; i < localStorage.length; i++){
+                    keys.push(localStorage.key(i));
+                }
+                success(keys);
+                }
+            }
+            module.exports = LocalStorageHandle;
+        });
+
+        //cordova-plugin-file-opener2
+        //https://github.com/dronahq/cordova-plugin-file-opener2
+        cordova.define('cordova-plugin-file-opener2',function(require,exports,module){
+            /*jslint browser: true, devel: true, node: true, sloppy: true, plusplus: true*/
+            /*global require, cordova */
+            /*
+            The MIT License (MIT)
+            Copyright (c) 2013 pwlin - pwlin05@gmail.com
+            Permission is hereby granted, free of charge, to any person obtaining a copy of
+            this software and associated documentation files (the "Software"), to deal in
+            the Software without restriction, including without limitation the rights to
+            use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+            the Software, and to permit persons to whom the Software is furnished to do so,
+            subject to the following conditions:
+            The above copyright notice and this permission notice shall be included in all
+            copies or substantial portions of the Software.
+            THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+            IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+            FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+            COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+            IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+            CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+            */
+            var exec = require('cordova/exec');
+
+            function FileOpener2() {}
+
+            FileOpener2.prototype.open = function (fileName, contentType, callbackContext) {
+                contentType = contentType || ''; 
+                callbackContext = callbackContext || {};
+                exec(callbackContext.success || null, callbackContext.error || null, 'FileOpener2', 'open', [fileName, contentType]);
+            };
+
+            FileOpener2.prototype.showOpenWithDialog = function (fileName, contentType, callbackContext) {
+                contentType = contentType || '';
+                callbackContext = callbackContext || {};
+                exec(callbackContext.success || null, callbackContext.error || null, 'FileOpener2', 'open', [fileName, contentType, false]);
+            };
+
+            FileOpener2.prototype.uninstall = function (packageId, callbackContext) {
+                callbackContext = callbackContext || {};
+                exec(callbackContext.success || null, callbackContext.error || null, 'FileOpener2', 'uninstall', [packageId]);
+            };
+
+            FileOpener2.prototype.appIsInstalled = function (packageId, callbackContext) {
+                callbackContext = callbackContext || {};
+                exec(callbackContext.success || null, callbackContext.error || null, 'FileOpener2', 'appIsInstalled', [packageId]);
+            };
+
+            module.exports = new FileOpener2();
+        });
+
+        //Cordova Speech-Recognition
+        // https://github.com/dronahq/cordova-plugin-speechrecognition
+        cordova.define("cordova-plugin-speechrecognition",function(require,exports,module){
+            module.exports = {
+                isRecognitionAvailable: function(successCallback, errorCallback) {
+                  cordova.exec(successCallback, errorCallback, 'SpeechRecognition', 'isRecognitionAvailable', []);
+                },
+                startListening: function(successCallback, errorCallback, options) {
+                  options = options || {};
+                  cordova.exec(successCallback, errorCallback, 'SpeechRecognition', 'startListening', [ options.language, options.matches, options.prompt, options.showPartial, options.showPopup ]);
+                },
+                stopListening: function(successCallback, errorCallback) {
+                  cordova.exec(successCallback, errorCallback, 'SpeechRecognition', 'stopListening', []);
+                },
+                getSupportedLanguages: function(successCallback, errorCallback) {
+                  cordova.exec(successCallback, errorCallback, 'SpeechRecognition', 'getSupportedLanguages', []);
+                },
+                hasPermission: function(successCallback, errorCallback) {
+                  cordova.exec(successCallback, errorCallback, 'SpeechRecognition', 'hasPermission', []);
+                },
+                requestPermission: function(successCallback, errorCallback) {
+                  cordova.exec(successCallback, errorCallback, 'SpeechRecognition', 'requestPermission', []);
+                }
+              };
+        });
+
         //File
         cordova.define("cordova-plugin-file.androidFileSystem", function (require, exports, module) {
             /*
@@ -762,9 +1588,8 @@
                     return ret;
                 }
             };
-
-
         });
+
         cordova.define("cordova-plugin-file.iosFileSystem", function (require, exports, module) {
             /*
              *
@@ -796,6 +1621,7 @@
                 }
             };
         });
+
         cordova.define("cordova-plugin-file.DirectoryEntry", function (require, exports, module) {
             /*
              *
@@ -835,7 +1661,6 @@
              * {FileSystem} filesystem on which the directory resides (readonly)
              */
             var DirectoryEntry = function (name, fullPath, fileSystem, nativeURL) {
-
                 // add trailing slash if it is missing
                 if ((fullPath) && !/\/$/.test(fullPath)) {
                     fullPath += "/";
@@ -914,7 +1739,6 @@
             };
 
             module.exports = DirectoryEntry;
-
         });
         cordova.define("cordova-plugin-file.DirectoryReader", function (require, exports, module) {
             /*
@@ -989,7 +1813,6 @@
             };
 
             module.exports = DirectoryReader;
-
         });
         cordova.define("cordova-plugin-file.Entry", function (require, exports, module) {
             /*
@@ -1262,7 +2085,6 @@
             };
 
             module.exports = Entry;
-
         });
         cordova.define("cordova-plugin-file.File", function (require, exports, module) {
             /*
@@ -1342,9 +2164,7 @@
                 return newFile;
             };
 
-
             module.exports = File;
-
         });
         cordova.define("cordova-plugin-file.FileEntry", function (require, exports, module) {
             /*
@@ -1426,9 +2246,7 @@
                 exec(win, fail, "File", "getFileMetadata", [localURL]);
             };
 
-
             module.exports = FileEntry;
-
         });
         cordova.define("cordova-plugin-file.FileError", function (require, exports, module) {
             /*
@@ -1477,7 +2295,6 @@
             FileError.PATH_EXISTS_ERR = 12;
 
             module.exports = FileError;
-
         });
         cordova.define("cordova-plugin-file.FileReader", function (require, exports, module) {
             /*
@@ -1683,7 +2500,6 @@
                         }
                     }, "File", "readAsText", execArgs);
             };
-
 
             /**
              * Read file and return data as a base64 encoded data url.
@@ -1908,7 +2724,6 @@
             };
 
             module.exports = FileReader;
-
         });
         cordova.define("cordova-plugin-file.FileSystem", function (require, exports, module) {
             /*
@@ -1959,7 +2774,6 @@
             };
 
             module.exports = FileSystem;
-
         });
         cordova.define("cordova-plugin-file.fileSystemPaths", function (require, exports, module) {
             /*
@@ -2024,8 +2838,6 @@
                 }
                 exec(after, null, 'File', 'requestAllPaths', []);
             });
-
-
         });
         cordova.define("cordova-plugin-file.fileSystems", function (require, exports, module) {
             /*
@@ -2053,7 +2865,6 @@
             module.exports.getFs = function (name, callback) {
                 callback(null);
             };
-
         });
         cordova.define("cordova-plugin-file.fileSystems-roots", function (require, exports, module) {
             /*
@@ -2100,8 +2911,6 @@
                     }
                 }
             };
-
-
         });
         cordova.define("cordova-plugin-file.FileUploadOptions", function (require, exports, module) {
             /*
@@ -2145,7 +2954,6 @@
             };
 
             module.exports = FileUploadOptions;
-
         });
         cordova.define("cordova-plugin-file.FileUploadOptions1", function (require, exports, module) {
             /*
@@ -2196,7 +3004,6 @@
             };
 
             module.exports = FileUploadOptions;
-
         });
         cordova.define("cordova-plugin-file.FileUploadResult", function (require, exports, module) {
             /*
@@ -2333,7 +3140,6 @@
              * @param data text or blob to be written
              */
             FileWriter.prototype.write = function (data) {
-
                 var that = this;
                 var supportsBinary = (typeof window.Blob !== 'undefined' && typeof window.ArrayBuffer !== 'undefined');
                 var isProxySupportBlobNatively = (cordova.platformId === "windows8" || cordova.platformId === "windows");
@@ -2557,7 +3363,6 @@
             };
 
             module.exports = FileWriter;
-
         });
         cordova.define("cordova-plugin-file.Flags", function (require, exports, module) {
             /*
@@ -2596,7 +3401,6 @@
             }
 
             module.exports = Flags;
-
         });
         cordova.define("cordova-plugin-file.LocalFileSystem", function (require, exports, module) {
             /*
@@ -2622,7 +3426,6 @@
 
             exports.TEMPORARY = 0;
             exports.PERSISTENT = 1;
-
         });
         cordova.define("cordova-plugin-file.Metadata", function (require, exports, module) {
             /*
@@ -2665,7 +3468,6 @@
             };
 
             module.exports = Metadata;
-
         });
         cordova.define("cordova-plugin-file.ProgressEvent", function (require, exports, module) {
             /*
@@ -2735,7 +3537,6 @@
             })();
 
             module.exports = ProgressEvent;
-
         });
         cordova.define("cordova-plugin-file.requestFileSystem", function (require, exports, module) {
             /*
@@ -2813,7 +3614,6 @@
             };
 
             module.exports = requestFileSystem;
-
         });
         cordova.define("cordova-plugin-file.resolveLocalFileSystemURI", function (require, exports, module) {
             /*
@@ -2905,7 +3705,6 @@
                 console.log("resolveLocalFileSystemURI is deprecated. Please call resolveLocalFileSystemURL instead.");
                 module.exports.resolveLocalFileSystemURL.apply(this, arguments);
             };
-
         });
 
         //File Transfer
@@ -2953,7 +3752,6 @@
 
             function getBasicAuthHeader(urlString) {
                 var header = null;
-
 
                 // This is changed due to MS Windows doesn't support credentials in http uris
                 // so we detect them by regexp and strip off from result url
@@ -3143,7 +3941,6 @@
             };
 
             module.exports = FileTransfer;
-
         });
         cordova.define("cordova-plugin-file-transfer.FileTransferError", function (require, exports, module) {
             /*
@@ -3187,7 +3984,6 @@
             FileTransferError.NOT_MODIFIED_ERR = 5;
 
             module.exports = FileTransferError;
-
         });
 
         //Geolocation for iOS
@@ -3264,7 +4060,6 @@
                 };
 
                 module.exports = Coordinates;
-
             });
             cordova.define("cordova-plugin-geolocation.Position", function (require, exports, module) {
                 /*
@@ -3300,7 +4095,6 @@
                 };
 
                 module.exports = Position;
-
             });
             cordova.define("cordova-plugin-geolocation.PositionError", function (require, exports, module) {
                 /*
@@ -3341,7 +4135,6 @@
                 PositionError.TIMEOUT = 3;
 
                 module.exports = PositionError;
-
             });
             cordova.define("cordova-plugin-geolocation.geolocation", function (require, exports, module) {
                 /*
@@ -3555,7 +4348,6 @@
                 };
 
                 module.exports = geolocation;
-
             });
         }
 
@@ -3602,7 +4394,6 @@
                 nextTick = window.setImmediate || function (fun) {
                     window.setTimeout(fun, 0);
                 };
-
 
                 /*
                   Utility that avoids leaking the arguments object. See
@@ -3851,7 +4642,6 @@
 
                 SQLitePluginTransaction = function (db, fn, error, success, txlock, readOnly) {
                     if (typeof fn !== "function") {
-
                         /*
                         This is consistent with the implementation in Chrome -- it
                         throws if you pass anything other than a function. This also
@@ -4091,7 +4881,6 @@
                 dblocations = ["docs", "libs", "nosync"];
 
                 SQLiteFactory = {
-
                     /*
                     NOTE: this function should NOT be translated from Javascript
                     back to CoffeeScript by js2coffee.
@@ -4181,8 +4970,89 @@
                     openDatabase: SQLiteFactory.opendb,
                     deleteDatabase: SQLiteFactory.deleteDb
                 };
-
             }).call(this);
+        });
+
+        //Decimal Keyboard
+        //https://github.com/dronahq/cordova-plugin-decimal-keyboard-wkwebview
+        cordova.define("cordova-plugin-decimal-keyboard-wkwebview", function(require, exports, module) {
+            var argscheck = require('cordova/argscheck'),
+                utils = require('cordova/utils'),
+                exec = require('cordova/exec');
+
+            var DecimalKeyboard = function() {
+
+            };
+            DecimalKeyboard.getActiveElementType = function() {
+                return document.activeElement.type;
+            };
+            DecimalKeyboard.isDecimal = function() {
+                var showDecimal = null;
+                var activeElement = document.activeElement;
+                if (activeElement.attributes["decimal"] == undefined ||
+                    activeElement.attributes["decimal"] == 'undefined' ||
+                    activeElement.attributes["decimal"].value == 'false') {
+                    showDecimal = false;
+                } else {
+                    showDecimal = true;
+                }
+                return showDecimal;
+            };
+            DecimalKeyboard.getDecimalChar = function(activeElement) {
+
+                if (activeElement == undefined || activeElement == null || activeElement == 'undefined')
+                    activeElement = document.activeElement;
+
+                var decimalChar = null;
+                if (activeElement.attributes["decimal-char"] == undefined ||
+                    activeElement.attributes["decimal-char"] == 'undefined') {
+                    decimalChar = '.'
+                } else {
+                    decimalChar = activeElement.attributes["decimal-char"].value;
+                }
+                return decimalChar;
+            };
+            DecimalKeyboard.addDecimalAtPos = function(val, position) {
+
+            };
+            DecimalKeyboard.addDecimal = function() {
+                var activeElement = document.activeElement;
+                var allowMultipleDecimals = true;
+                if (activeElement.attributes["allow-multiple-decimals"] == undefined ||
+                    activeElement.attributes["allow-multiple-decimals"] == 'undefined' ||
+                    activeElement.attributes["allow-multiple-decimals"].value == 'false') {
+                    allowMultipleDecimals = false;
+                }
+                var value = activeElement.value;
+                var valueToSet = '';
+                var decimalChar = DecimalKeyboard.getDecimalChar(activeElement);
+                var caretPosStart = activeElement.selectionStart;
+                var caretPosEnd = activeElement.selectionEnd;
+                var first = '';
+                var last = '';
+
+                first = value.substring(0, caretPosStart);
+                last = value.substring(caretPosEnd);
+
+                if (allowMultipleDecimals) {
+                    valueToSet = first + decimalChar + last;
+                } else {
+                    if (value.indexOf(decimalChar) > -1)
+                        return;
+                    else {
+                        if (caretPosStart == 0) {
+                            first = '0';
+                        }
+                        valueToSet = first + decimalChar + last;
+
+                    }
+                }
+
+                activeElement.value = valueToSet;
+            };
+
+
+            module.exports = DecimalKeyboard;
         });
 
         //Ionic Keyboard
@@ -4191,7 +5061,6 @@
             var argscheck = require('cordova/argscheck'),
                 utils = require('cordova/utils'),
                 exec = require('cordova/exec');
-
 
             var Keyboard = function () { };
 
@@ -4230,7 +5099,6 @@
                 utils = require('cordova/utils'),
                 exec = require('cordova/exec'),
                 channel = require('cordova/channel');
-
 
             var Keyboard = function () { };
 
@@ -4311,7 +5179,6 @@
              *
              * @APPPLANT_LICENSE_HEADER_END@
              */
-
 
             /*************
              * INTERFACE *
@@ -4611,7 +5478,6 @@
                 this.core.registerPermission(callback, scope);
             };
 
-
             /****************
              * DEPRECATIONS *
              ****************/
@@ -4634,7 +5500,6 @@
 
                 this.registerPermission.apply(this, arguments);
             };
-
 
             /**********
              * EVENTS *
@@ -4665,7 +5530,6 @@
             exports.un = function (event, callback) {
                 this.core.un(event, callback);
             };
-
         });
         cordova.define("de.appplant.cordova.plugin.local-notification.LocalNotification.Core", function (require, exports, module) {
             /*
@@ -4692,7 +5556,6 @@
              */
 
             var exec = require('cordova/exec');
-
 
             /********
              * CORE *
@@ -4737,7 +5600,6 @@
              */
             exports.schedule = function (msgs, callback, scope, args) {
                 var fn = function (granted) {
-
                     if (!granted) return;
 
                     var notifications = Array.isArray(msgs) ? msgs : [msgs];
@@ -4774,7 +5636,6 @@
              */
             exports.update = function (msgs, callback, scope, args) {
                 var fn = function (granted) {
-
                     if (!granted) return;
 
                     var notifications = Array.isArray(msgs) ? msgs : [msgs];
@@ -5106,7 +5967,6 @@
              *      The callback function's scope
              */
             exports.registerPermission = function (callback, scope) {
-
                 if (this._registered) {
                     return this.hasPermission(callback, scope);
                 } else {
@@ -5123,7 +5983,6 @@
                 exec(fn, null, 'LocalNotification', 'registerPermission', []);
             };
 
-
             /**********
              * EVENTS *
              **********/
@@ -5139,7 +5998,6 @@
              *      The callback function's scope
              */
             exports.on = function (event, callback, scope) {
-
                 if (typeof callback !== "function")
                     return;
 
@@ -5175,7 +6033,6 @@
                     }
                 }
             };
-
         });
         cordova.define("de.appplant.cordova.plugin.local-notification.LocalNotification.Util", function (require, exports, module) {
             /*
@@ -5204,7 +6061,6 @@
             var exec = require('cordova/exec'),
                 channel = require('cordova/channel');
 
-
             /***********
              * MEMBERS *
              ***********/
@@ -5226,7 +6082,6 @@
 
             // Registered permission flag
             exports._registered = false;
-
 
             /********
              * UTIL *
@@ -5313,7 +6168,6 @@
              *      The converted property list
              */
             exports.convertProperties = function (options) {
-
                 if (options.id) {
                     if (isNaN(options.id)) {
                         options.id = this.getDefaults().id;
@@ -5377,7 +6231,6 @@
              *      The new callback function
              */
             exports.createCallbackFn = function (callbackFn, scope) {
-
                 if (typeof callbackFn != 'function')
                     return;
 
@@ -5471,7 +6324,6 @@
                 exec(fn, null, 'LocalNotification', action, params);
             };
 
-
             /*********
              * HOOKS *
              *********/
@@ -5491,7 +6343,6 @@
                     exports.applyPlatformSpecificOptions();
                 });
             });
-
         });
 
         //Calendar Plugin: https://github.com/dronahq/Calendar-PhoneGap-Plugin
@@ -5809,7 +6660,6 @@
              */
 
             module.exports = {
-
                 /**
                  * Open a native alert dialog, with a customizable title and button text.
                  *
@@ -5889,16 +6739,13 @@
                 }
             };
 
-
             function convertButtonLabels(buttonLabels) {
-
                 // Some platforms take an array of button label names.
                 // Other platforms take a comma separated list.
                 // For compatibility, we convert to the desired type based on the platform.
                 if (platform.id == "amazon-fireos" || platform.id == "android" || platform.id == "ios" ||
                     platform.id == "windowsphone" || platform.id == "firefoxos" || platform.id == "ubuntu" ||
                     platform.id == "windows8" || platform.id == "windows") {
-
                     if (typeof buttonLabels === 'string') {
                         buttonLabels = buttonLabels.split(","); // not crazy about changing the var type here
                     }
@@ -5911,7 +6758,6 @@
 
                 return buttonLabels;
             }
-
         });
 
         //Barcode scanner: https://github.com/dronahq/phonegap-plugin-barcodescanner
@@ -5934,7 +6780,6 @@
              * @returns {BarcodeScanner}
              */
             function BarcodeScanner() {
-
                 /**
                  * Encoding constants.
                  *
@@ -5990,7 +6835,6 @@
              * @param config
              */
             BarcodeScanner.prototype.scan = function (successCallback, errorCallback, config) {
-
                 if (config instanceof Array) {
                     // do nothing
                 } else {
@@ -6101,6 +6945,7 @@
                 NONE: "none"
             };
         });
+
         cordova.define("cordova-plugin-network-information.network", function (require, exports, module) {
             /*
              * Licensed to the Apache Software Foundation (ASF) under one
@@ -6196,11 +7041,12 @@
 
         // X Social Sharing: https://github.com/dronahq/SocialSharing-PhoneGap-Plugin
         cordova.define("cordova-plugin-x-socialsharing.SocialSharing", function (require, exports, module) {
-            function SocialSharing() { }
+            function SocialSharing() {
+            }
 
             // Override this method (after deviceready) to set the location where you want the iPad popup arrow to appear.
             // If not overridden with different values, the popup is not used. Example:
-            //
+            // 
             //   window.plugins.socialsharing.iPadPopupCoordinates = function() {
             //     return "100,100,200,300";
             //   };
@@ -6223,6 +7069,23 @@
             // this is the recommended way to share as it is the most feature-rich with respect to what you pass in and get back
             SocialSharing.prototype.shareWithOptions = function (options, successCallback, errorCallback) {
                 cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareWithOptions"), "SocialSharing", "shareWithOptions", [options]);
+            };
+
+            SocialSharing.prototype.shareW3C = function (sharedata) {
+                return new Promise(function (resolve, reject) {
+                    var options = {
+                        subject: sharedata.title,
+                        message: sharedata.text,
+                        url: sharedata.url
+                    };
+                    if (sharedata.hasOwnProperty('title') ||
+                        sharedata.hasOwnProperty('text') ||
+                        sharedata.hasOwnProperty('url')) {
+                        cordova.exec(resolve, reject, "SocialSharing", "shareWithOptions", [options]);
+                    } else {
+                        reject();
+                    }
+                });
             };
 
             SocialSharing.prototype.share = function (message, subject, fileOrFileArray, url, successCallback, errorCallback) {
@@ -6249,19 +7112,21 @@
             };
 
             SocialSharing.prototype.shareViaWhatsApp = function (message, fileOrFileArray, url, successCallback, errorCallback) {
-                cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsApp"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, null]);
+                cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsApp"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, null, null]);
             };
 
             SocialSharing.prototype.shareViaWhatsAppToReceiver = function (receiver, message, fileOrFileArray, url, successCallback, errorCallback) {
-                cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsAppToReceiver"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, receiver]);
+                cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsAppToReceiver"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, receiver, null]);
+            };
+
+            SocialSharing.prototype.shareViaWhatsAppToPhone = function (phone, message, fileOrFileArray, url, successCallback, errorCallback) {
+                cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaWhatsAppToPhone"), "SocialSharing", "shareViaWhatsApp", [message, null, this._asArray(fileOrFileArray), url, null, phone]);
             };
 
             SocialSharing.prototype.shareViaSMS = function (options, phonenumbers, successCallback, errorCallback) {
                 var opts = options;
-                if (typeof options == "string") {
-                    opts = {
-                        "message": options
-                    }; // for backward compatibility as the options param used to be the message
+                if (typeof options === "string") {
+                    opts = { "message": options }; // for backward compatibility as the options param used to be the message
                 }
                 cordova.exec(successCallback, this._getErrorCallback(errorCallback, "shareViaSMS"), "SocialSharing", "shareViaSMS", [opts, phonenumbers]);
             };
@@ -6315,6 +7180,7 @@
                 }
 
                 window.plugins.socialsharing = new SocialSharing();
+                navigator.share = window.plugins.socialsharing.shareW3C;
                 return window.plugins.socialsharing;
             };
 
@@ -6350,7 +7216,6 @@
 
             //Plug in to Cordova
             cordova.addConstructor(function () {
-
                 if (!window.Cordova) {
                     window.Cordova = cordova;
                 };
@@ -6358,7 +7223,6 @@
                 if (!window.plugins) window.plugins = {};
                 window.plugins.CallNumber = new CallNumber();
             });
-
         });
 
         // Location Accuracy: https://github.com/dronahq/cordova-plugin-request-location-accuracy
@@ -6400,7 +7264,6 @@
                  * @type {number}
                  */
                 RequestLocationAccuracy.prototype.REQUEST_PRIORITY_HIGH_ACCURACY = 3;
-
 
                 /**
                  * Success due to current location settings already satisfying requested accuracy
@@ -6513,8 +7376,6 @@
                 };
 
                 module.exports = new RequestLocationAccuracy();
-
-
             });
         } else if (DronaHQ.onIos) {
             cordova.define("cordova-plugin-request-location-accuracy.RequestLocationAccuracy", function (require, exports, module) {
@@ -6525,7 +7386,6 @@
                 **/
                 var RequestLocationAccuracy = function () {
                 };
-
 
                 /**
                  * Requests a position to invoke to native dialog to turn on Location Services.
@@ -6559,8 +7419,6 @@
                 };
 
                 module.exports = new RequestLocationAccuracy();
-
-
             });
         }
 
@@ -6684,7 +7542,6 @@
                 };
 
             module.exports = compass;
-
         });
         cordova.define("cordova-plugin-device-orientation.CompassError", function (require, exports, module) {
             /*
@@ -6721,7 +7578,6 @@
             CompassError.COMPASS_NOT_SUPPORTED = 20;
 
             module.exports = CompassError;
-
         });
         cordova.define("cordova-plugin-device-orientation.CompassHeading", function (require, exports, module) {
             /*
@@ -6753,14 +7609,13 @@
             };
 
             module.exports = CompassHeading;
-
         });
 
         // Cordova Email Plugin@v0.8.2: https://github.com/dronahq/cordova-plugin-email-composer/tree/0.8.2
         cordova.define("cordova-plugin-email-composer.EmailComposer", function (require, exports, module) {
             /*
                 Copyright 2013-2016 appPlant UG
-        
+
                 Licensed to the Apache Software Foundation (ASF) under one
                 or more contributor license agreements.  See the NOTICE file
                 distributed with this work for additional information
@@ -6768,9 +7623,9 @@
                 to you under the Apache License, Version 2.0 (the
                 "License"); you may not use this file except in compliance
                 with the License.  You may obtain a copy of the License at
-        
+
                  http://www.apache.org/licenses/LICENSE-2.0
-        
+
                 Unless required by applicable law or agreed to in writing,
                 software distributed under the License is distributed on an
                 "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -6861,7 +7716,7 @@
             };
 
             /**
-             * Alias für `open()`.
+             * Alias fÃ¼r `open()`.
              */
             exports.openDraft = function () {
                 this.open.apply(this, arguments);
@@ -6893,7 +7748,6 @@
                 }
 
                 for (var key in defaults) {
-
                     if (!options.hasOwnProperty(key)) {
                         options[key] = defaults[key];
                         continue;
@@ -6908,7 +7762,6 @@
                     }
 
                     if (typeof default_ != typeof custom_) {
-
                         if (typeof default_ == 'string') {
                             options[key] = custom_.join('');
                         } else if (typeof default_ == 'object') {
@@ -6942,7 +7795,6 @@
                     callbackFn.apply(scope || this, arguments);
                 };
             };
-
         });
 
         // SSL Certificate Checker: https://github.com/dronahq/SSLCertificateChecker-PhoneGap-Plugin
@@ -6982,6 +7834,810 @@
             module.exports = sslCertificateChecker;
         });
 
+        // Contacts: https://github.com/dronahq/cordova-plugin-contacts
+        cordova.define("cordova-plugin-contacts.Contact", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+             */
+
+            var argscheck = require('cordova/argscheck'),
+                exec = require('cordova/exec'),
+                ContactError = require('./ContactError'),
+                utils = require('cordova/utils'),
+                convertUtils = require('./convertUtils');
+
+            /**
+             * Contains information about a single contact.
+             * @constructor
+             * @param {DOMString} id unique identifier
+             * @param {DOMString} displayName
+             * @param {ContactName} name
+             * @param {DOMString} nickname
+             * @param {Array.<ContactField>} phoneNumbers array of phone numbers
+             * @param {Array.<ContactField>} emails array of email addresses
+             * @param {Array.<ContactAddress>} addresses array of addresses
+             * @param {Array.<ContactField>} ims instant messaging user ids
+             * @param {Array.<ContactOrganization>} organizations
+             * @param {DOMString} birthday contact's birthday
+             * @param {DOMString} note user notes about contact
+             * @param {Array.<ContactField>} photos
+             * @param {Array.<ContactField>} categories
+             * @param {Array.<ContactField>} urls contact's web sites
+             */
+            var Contact = function (id, displayName, name, nickname, phoneNumbers, emails, addresses,
+                ims, organizations, birthday, note, photos, categories, urls) {
+                this.id = id || null;
+                this.rawId = null;
+                this.displayName = displayName || null;
+                this.name = name || null; // ContactName
+                this.nickname = nickname || null;
+                this.phoneNumbers = phoneNumbers || null; // ContactField[]
+                this.emails = emails || null; // ContactField[]
+                this.addresses = addresses || null; // ContactAddress[]
+                this.ims = ims || null; // ContactField[]
+                this.organizations = organizations || null; // ContactOrganization[]
+                this.birthday = birthday || null;
+                this.note = note || null;
+                this.photos = photos || null; // ContactField[]
+                this.categories = categories || null; // ContactField[]
+                this.urls = urls || null; // ContactField[]
+            };
+
+            /**
+             * Removes contact from device storage.
+             * @param successCB success callback
+             * @param errorCB error callback
+             */
+            Contact.prototype.remove = function (successCB, errorCB) {
+                argscheck.checkArgs('FF', 'Contact.remove', arguments);
+                var fail = errorCB && function (code) {
+                    errorCB(new ContactError(code));
+                };
+                if (this.id === null) {
+                    fail(ContactError.UNKNOWN_ERROR);
+                } else {
+                    exec(successCB, fail, "Contacts", "remove", [this.id]);
+                }
+            };
+
+            /**
+             * Creates a deep copy of this Contact.
+             * With the contact ID set to null.
+             * @return copy of this Contact
+             */
+            Contact.prototype.clone = function () {
+                var clonedContact = utils.clone(this);
+                clonedContact.id = null;
+                clonedContact.rawId = null;
+
+                function nullIds(arr) {
+                    if (arr) {
+                        for (var i = 0; i < arr.length; ++i) {
+                            arr[i].id = null;
+                        }
+                    }
+                }
+
+                // Loop through and clear out any id's in phones, emails, etc.
+                nullIds(clonedContact.phoneNumbers);
+                nullIds(clonedContact.emails);
+                nullIds(clonedContact.addresses);
+                nullIds(clonedContact.ims);
+                nullIds(clonedContact.organizations);
+                nullIds(clonedContact.categories);
+                nullIds(clonedContact.photos);
+                nullIds(clonedContact.urls);
+                return clonedContact;
+            };
+
+            /**
+             * Persists contact to device storage.
+             * @param successCB success callback
+             * @param errorCB error callback
+             */
+            Contact.prototype.save = function (successCB, errorCB) {
+                argscheck.checkArgs('FFO', 'Contact.save', arguments);
+                var fail = errorCB && function (code) {
+                    errorCB(new ContactError(code));
+                };
+                var success = function (result) {
+                    if (result) {
+                        if (successCB) {
+                            var fullContact = require('./contacts').create(result);
+                            successCB(convertUtils.toCordovaFormat(fullContact));
+                        }
+                    } else {
+                        // no Entry object returned
+                        fail(ContactError.UNKNOWN_ERROR);
+                    }
+                };
+                var dupContact = convertUtils.toNativeFormat(utils.clone(this));
+                exec(success, fail, "Contacts", "save", [dupContact]);
+            };
+
+            module.exports = Contact;
+        });
+        cordova.define("cordova-plugin-contacts.ContactAddress", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            /**
+            * Contact address.
+            * @constructor
+            * @param {DOMString} id unique identifier, should only be set by native code
+            * @param formatted // NOTE: not a W3C standard
+            * @param streetAddress
+            * @param locality
+            * @param region
+            * @param postalCode
+            * @param country
+            */
+
+            var ContactAddress = function (pref, type, formatted, streetAddress, locality, region, postalCode, country) {
+                this.id = null;
+                this.pref = (typeof pref != 'undefined' ? pref : false);
+                this.type = type || null;
+                this.formatted = formatted || null;
+                this.streetAddress = streetAddress || null;
+                this.locality = locality || null;
+                this.region = region || null;
+                this.postalCode = postalCode || null;
+                this.country = country || null;
+            };
+
+            module.exports = ContactAddress;
+        });
+        cordova.define("cordova-plugin-contacts.ContactError", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            /**
+             *  ContactError.
+             *  An error code assigned by an implementation when an error has occurred
+             * @constructor
+             */
+            var ContactError = function (err) {
+                this.code = (typeof err != 'undefined' ? err : null);
+            };
+
+            /**
+             * Error codes
+             */
+            ContactError.UNKNOWN_ERROR = 0;
+            ContactError.INVALID_ARGUMENT_ERROR = 1;
+            ContactError.TIMEOUT_ERROR = 2;
+            ContactError.PENDING_OPERATION_ERROR = 3;
+            ContactError.IO_ERROR = 4;
+            ContactError.NOT_SUPPORTED_ERROR = 5;
+            ContactError.OPERATION_CANCELLED_ERROR = 6;
+            ContactError.PERMISSION_DENIED_ERROR = 20;
+
+            module.exports = ContactError;
+        });
+        cordova.define("cordova-plugin-contacts.ContactField", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            /**
+            * Generic contact field.
+            * @constructor
+            * @param {DOMString} id unique identifier, should only be set by native code // NOTE: not a W3C standard
+            * @param type
+            * @param value
+            * @param pref
+            */
+            var ContactField = function (type, value, pref) {
+                this.id = null;
+                this.type = (type && type.toString()) || null;
+                this.value = (value && value.toString()) || null;
+                this.pref = (typeof pref != 'undefined' ? pref : false);
+            };
+
+            module.exports = ContactField;
+        });
+        cordova.define("cordova-plugin-contacts.ContactFieldType", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            // Possible field names for various platforms.
+            // Some field names are platform specific
+
+            var fieldType = {
+                addresses: "addresses",
+                birthday: "birthday",
+                categories: "categories",
+                country: "country",
+                department: "department",
+                displayName: "displayName",
+                emails: "emails",
+                familyName: "familyName",
+                formatted: "formatted",
+                givenName: "givenName",
+                honorificPrefix: "honorificPrefix",
+                honorificSuffix: "honorificSuffix",
+                id: "id",
+                ims: "ims",
+                locality: "locality",
+                middleName: "middleName",
+                name: "name",
+                nickname: "nickname",
+                note: "note",
+                organizations: "organizations",
+                phoneNumbers: "phoneNumbers",
+                photos: "photos",
+                postalCode: "postalCode",
+                region: "region",
+                streetAddress: "streetAddress",
+                title: "title",
+                urls: "urls"
+            };
+
+            module.exports = fieldType;
+        });
+        cordova.define("cordova-plugin-contacts.ContactFindOptions", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            /**
+             * ContactFindOptions.
+             * @constructor
+             * @param filter used to match contacts against
+             * @param multiple boolean used to determine if more than one contact should be returned
+             * @param desiredFields
+             * @param hasPhoneNumber boolean used to filter the search and only return contacts that have a phone number informed
+             */
+
+            var ContactFindOptions = function (filter, multiple, desiredFields, hasPhoneNumber) {
+                this.filter = filter || '';
+                this.multiple = (typeof multiple != 'undefined' ? multiple : false);
+                this.desiredFields = typeof desiredFields != 'undefined' ? desiredFields : [];
+                this.hasPhoneNumber = typeof hasPhoneNumber != 'undefined' ? hasPhoneNumber : false;
+            };
+
+            module.exports = ContactFindOptions;
+        });
+        cordova.define("cordova-plugin-contacts.ContactName", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            /**
+            * Contact name.
+            * @constructor
+            * @param formatted // NOTE: not part of W3C standard
+            * @param familyName
+            * @param givenName
+            * @param middle
+            * @param prefix
+            * @param suffix
+            */
+            var ContactName = function (formatted, familyName, givenName, middle, prefix, suffix) {
+                this.formatted = formatted || null;
+                this.familyName = familyName || null;
+                this.givenName = givenName || null;
+                this.middleName = middle || null;
+                this.honorificPrefix = prefix || null;
+                this.honorificSuffix = suffix || null;
+            };
+
+            module.exports = ContactName;
+        });
+        cordova.define("cordova-plugin-contacts.ContactOrganization", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            /**
+            * Contact organization.
+            * @constructor
+            * @param pref
+            * @param type
+            * @param name
+            * @param dept
+            * @param title
+            */
+
+            var ContactOrganization = function (pref, type, name, dept, title) {
+                this.id = null;
+                this.pref = (typeof pref != 'undefined' ? pref : false);
+                this.type = type || null;
+                this.name = name || null;
+                this.department = dept || null;
+                this.title = title || null;
+            };
+
+            module.exports = ContactOrganization;
+        });
+        cordova.define("cordova-plugin-contacts.contacts", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            var argscheck = require('cordova/argscheck'),
+                exec = require('cordova/exec'),
+                ContactError = require('./ContactError'),
+                Contact = require('./Contact'),
+                fieldType = require('./ContactFieldType'),
+                convertUtils = require('./convertUtils');
+
+            /**
+            * Represents a group of Contacts.
+            * @constructor
+            */
+            var contacts = {
+                fieldType: fieldType,
+                /**
+                 * Returns an array of Contacts matching the search criteria.
+                 * @param fields that should be searched
+                 * @param successCB success callback
+                 * @param errorCB error callback
+                 * @param {ContactFindOptions} options that can be applied to contact searching
+                 * @return array of Contacts matching search criteria
+                 */
+                find: function (fields, successCB, errorCB, options) {
+                    argscheck.checkArgs('afFO', 'contacts.find', arguments);
+                    if (!fields.length) {
+                        if (errorCB) {
+                            errorCB(new ContactError(ContactError.INVALID_ARGUMENT_ERROR));
+                        }
+                    } else {
+                        // missing 'options' param means return all contacts
+                        options = options || { filter: '', multiple: true };
+                        var win = function (result) {
+                            var cs = [];
+                            for (var i = 0, l = result.length; i < l; i++) {
+                                cs.push(convertUtils.toCordovaFormat(contacts.create(result[i])));
+                            }
+                            successCB(cs);
+                        };
+                        exec(win, errorCB, "Contacts", "search", [fields, options]);
+                    }
+                },
+
+                /**
+                 * This function picks contact from phone using contact picker UI
+                 * @returns new Contact object
+                 */
+                pickContact: function (successCB, errorCB) {
+                    argscheck.checkArgs('fF', 'contacts.pick', arguments);
+
+                    var win = function (result) {
+                        // if Contacts.pickContact return instance of Contact object
+                        // don't create new Contact object, use current
+                        var contact = result instanceof Contact ? result : contacts.create(result);
+                        successCB(convertUtils.toCordovaFormat(contact));
+                    };
+                    exec(win, errorCB, "Contacts", "pickContact", []);
+                },
+
+                /**
+                 * This function creates a new contact, but it does not persist the contact
+                 * to device storage. To persist the contact to device storage, invoke
+                 * contact.save().
+                 * @param properties an object whose properties will be examined to create a new Contact
+                 * @returns new Contact object
+                 */
+                create: function (properties) {
+                    argscheck.checkArgs('O', 'contacts.create', arguments);
+                    var contact = new Contact();
+                    for (var i in properties) {
+                        if (typeof contact[i] !== 'undefined' && properties.hasOwnProperty(i)) {
+                            contact[i] = properties[i];
+                        }
+                    }
+                    return contact;
+                }
+            };
+
+            module.exports = contacts;
+        });
+        cordova.define("cordova-plugin-contacts.convertUtils", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            var utils = require('cordova/utils');
+
+            module.exports = {
+                /**
+                * Converts primitives into Complex Object
+                * Currently only used for Date fields
+                */
+                toCordovaFormat: function (contact) {
+                    var value = contact.birthday;
+                    if (value !== null) {
+                        try {
+                            contact.birthday = new Date(parseFloat(value));
+
+                            //we might get 'Invalid Date' which does not throw an error
+                            //and is an instance of Date.
+                            if (isNaN(contact.birthday.getTime())) {
+                                contact.birthday = null;
+                            }
+                        } catch (exception) {
+                            console.log("Cordova Contact toCordovaFormat error: exception creating date.");
+                        }
+                    }
+                    return contact;
+                },
+
+                /**
+                * Converts Complex objects into primitives
+                * Only conversion at present is for Dates.
+                **/
+                toNativeFormat: function (contact) {
+                    var value = contact.birthday;
+                    if (value !== null) {
+                        // try to make it a Date object if it is not already
+                        if (!utils.isDate(value)) {
+                            try {
+                                value = new Date(value);
+                            } catch (exception) {
+                                value = null;
+                            }
+                        }
+                        if (utils.isDate(value)) {
+                            value = value.valueOf(); // convert to milliseconds
+                        }
+                        contact.birthday = value;
+                    }
+                    return contact;
+                }
+            };
+        });
+        if (DronaHQ.onIos) {
+            cordova.define("cordova-plugin-contacts.Contact-iOS", function (require, exports, module) {
+                /*
+                 *
+                 * Licensed to the Apache Software Foundation (ASF) under one
+                 * or more contributor license agreements.  See the NOTICE file
+                 * distributed with this work for additional information
+                 * regarding copyright ownership.  The ASF licenses this file
+                 * to you under the Apache License, Version 2.0 (the
+                 * "License"); you may not use this file except in compliance
+                 * with the License.  You may obtain a copy of the License at
+                 *
+                 *   http://www.apache.org/licenses/LICENSE-2.0
+                 *
+                 * Unless required by applicable law or agreed to in writing,
+                 * software distributed under the License is distributed on an
+                 * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+                 * KIND, either express or implied.  See the License for the
+                 * specific language governing permissions and limitations
+                 * under the License.
+                 *
+                */
+
+                var exec = require('cordova/exec'),
+                    ContactError = require('./ContactError');
+
+                /**
+                 * Provides iOS Contact.display API.
+                 */
+                module.exports = {
+                    display: function (errorCB, options) {
+                        /*
+                         *    Display a contact using the iOS Contact Picker UI
+                         *    NOT part of W3C spec so no official documentation
+                         *
+                         *    @param errorCB error callback
+                         *    @param options object
+                         *    allowsEditing: boolean AS STRING
+                         *        "true" to allow editing the contact
+                         *        "false" (default) display contact
+                         */
+
+                        if (this.id === null) {
+                            if (typeof errorCB === "function") {
+                                var errorObj = new ContactError(ContactError.UNKNOWN_ERROR);
+                                errorCB(errorObj);
+                            }
+                        }
+                        else {
+                            exec(null, errorCB, "Contacts", "displayContact", [this.id, options]);
+                        }
+                    }
+                };
+            });
+            cordova.define("cordova-plugin-contacts.contacts-ios", function (require, exports, module) {
+                /*
+                 *
+                 * Licensed to the Apache Software Foundation (ASF) under one
+                 * or more contributor license agreements.  See the NOTICE file
+                 * distributed with this work for additional information
+                 * regarding copyright ownership.  The ASF licenses this file
+                 * to you under the Apache License, Version 2.0 (the
+                 * "License"); you may not use this file except in compliance
+                 * with the License.  You may obtain a copy of the License at
+                 *
+                 *   http://www.apache.org/licenses/LICENSE-2.0
+                 *
+                 * Unless required by applicable law or agreed to in writing,
+                 * software distributed under the License is distributed on an
+                 * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+                 * KIND, either express or implied.  See the License for the
+                 * specific language governing permissions and limitations
+                 * under the License.
+                 *
+                */
+
+                var exec = require('cordova/exec');
+
+                /**
+                 * Provides iOS enhanced contacts API.
+                 */
+                module.exports = {
+                    newContactUI: function (successCallback) {
+                        /*
+                         *    Create a contact using the iOS Contact Picker UI
+                         *    NOT part of W3C spec so no official documentation
+                         *
+                         * returns:  the id of the created contact as param to successCallback
+                         */
+                        exec(successCallback, null, "Contacts", "newContact", []);
+                    },
+                    chooseContact: function (successCallback, options) {
+                        /*
+                         *    Select a contact using the iOS Contact Picker UI
+                         *    NOT part of W3C spec so no official documentation
+                         *
+                         *    @param errorCB error callback
+                         *    @param options object
+                         *    allowsEditing: boolean AS STRING
+                         *        "true" to allow editing the contact
+                         *        "false" (default) display contact
+                         *      fields: array of fields to return in contact object (see ContactOptions.fields)
+                         *
+                         *    @returns
+                         *        id of contact selected
+                         *        ContactObject
+                         *            if no fields provided contact contains just id information
+                         *            if fields provided contact object contains information for the specified fields
+                         *
+                         */
+                        var win = function (result) {
+                            var fullContact = require('./contacts').create(result);
+                            successCallback(fullContact.id, fullContact);
+                        };
+                        exec(win, null, "Contacts", "chooseContact", [options]);
+                    }
+                };
+            });
+        }
+
+        // Cordova SMS Plugin: https://github.com/dronahq/cordova-sms-plugin
+        cordova.define("cordova-sms-plugin.Sms", function (require, exports, module) {
+            'use strict';
+
+            var exec = require('cordova/exec');
+
+            var sms = {};
+
+            function convertPhoneToArray(phone) {
+                if (typeof phone === 'string' && phone.indexOf(',') !== -1) {
+                    phone = phone.split(',');
+                }
+                if (Object.prototype.toString.call(phone) !== '[object Array]') {
+                    phone = [phone];
+                }
+                return phone;
+            }
+
+            sms.send = function (phone, message, options, success, failure) {
+                // parsing phone numbers
+                phone = convertPhoneToArray(phone);
+
+                // parsing options
+                var replaceLineBreaks = false;
+                var androidIntent = '';
+                if (typeof options === 'string') { // ensuring backward compatibility
+                    window.console.warn('[DEPRECATED] Passing a string as a third argument is deprecated. Please refer to the documentation to pass the right parameter: https://github.com/cordova-sms/cordova-sms-plugin.');
+                    androidIntent = options;
+                }
+                else if (typeof options === 'object') {
+                    replaceLineBreaks = options.replaceLineBreaks || false;
+                    if (options.android && typeof options.android === 'object') {
+                        androidIntent = options.android.intent;
+                    }
+                }
+
+                // fire
+                exec(
+                    success,
+                    failure,
+                    'Sms',
+                    'send', [phone, message, androidIntent, replaceLineBreaks]
+                );
+            };
+
+            sms.hasPermission = function (success, failure) {
+                // fire
+                exec(
+                    success,
+                    failure,
+                    'Sms',
+                    'has_permission', []
+                );
+            };
+
+            module.exports = sms;
+        });
+
         // ADAL plugin: https://github.com/AzureAD/azure-activedirectory-library-for-cordova
         cordova.define("cordova-plugin-ms-adal.AuthenticationContext", function (require, exports, module) {
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
@@ -7009,7 +8665,6 @@
              * @returns {Object}  Newly created authentication context.
              */
             function AuthenticationContext(authority, validateAuthority) {
-
                 checkArgs('s*', 'AuthenticationContext', arguments);
 
                 if (validateAuthority !== false) {
@@ -7031,7 +8686,6 @@
              * @returns {Promise}  Promise either fulfilled with newly created authentication context or rejected with error
              */
             AuthenticationContext.createAsync = function (authority, validateAuthority) {
-
                 checkArgs('s*', 'AuthenticationContext.createAsync', arguments);
 
                 var d = new Deferred();
@@ -7063,7 +8717,6 @@
              * @returns {Promise} Promise either fulfilled with AuthenticationResult object or rejected with error
              */
             AuthenticationContext.prototype.acquireTokenAsync = function (resourceUrl, clientId, redirectUrl, userId, extraQueryParameters) {
-
                 checkArgs('sssSS', 'AuthenticationContext.acquireTokenAsync', arguments);
 
                 var d = new Deferred();
@@ -7092,7 +8745,6 @@
              * @returns {Promise} Promise either fulfilled with AuthenticationResult object or rejected with error
              */
             AuthenticationContext.prototype.acquireTokenSilentAsync = function (resourceUrl, clientId, userId) {
-
                 checkArgs('ssS', 'AuthenticationContext.acquireTokenSilentAsync', arguments);
 
                 var d = new Deferred();
@@ -7108,7 +8760,6 @@
             };
 
             module.exports = AuthenticationContext;
-
         });
         cordova.define("cordova-plugin-ms-adal.AuthenticationResult", function (require, exports, module) {
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
@@ -7143,7 +8794,6 @@
             };
 
             module.exports = AuthenticationResult;
-
         });
         cordova.define("cordova-plugin-ms-adal.AuthenticationSettings", function (require, exports, module) {
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
@@ -7156,7 +8806,6 @@
             var Deferred = require('./utility').Utility.Deferred;
 
             module.exports = {
-
                 /**
                  * Sets flag to use or skip authentication broker.
                  * By default, the flag value is false and ADAL will not talk to broker.
@@ -7166,13 +8815,11 @@
                  * @returns {Promise}  Promise either fulfilled or rejected with error
                  */
                 setUseBroker: function (useBroker) {
-
                     checkArgs('*', 'AuthenticationSettings.setUseBroker', arguments);
 
                     return bridge.executeNativeMethod('setUseBroker', [!!useBroker]);
                 }
             }
-
         });
         cordova.define("cordova-plugin-ms-adal.CordovaBridge", function (require, exports, module) {
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
@@ -7204,7 +8851,6 @@
                     };
 
                     var fail = function (err) {
-
                         if (typeof err === "string") {
                             err = {
                                 errorDescription: err
@@ -7225,7 +8871,6 @@
             };
 
             module.exports = cordovaBridge;
-
         });
         cordova.define("cordova-plugin-ms-adal.TokenCache", function (require, exports, module) {
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
@@ -7301,7 +8946,6 @@
             };
 
             module.exports = TokenCache;
-
         });
         cordova.define("cordova-plugin-ms-adal.TokenCacheItem", function (require, exports, module) {
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
@@ -7314,7 +8958,6 @@
              * Represents token cache item.
              */
             function TokenCacheItem(cacheItem) {
-
                 cacheItem = cacheItem || {};
 
                 this.accessToken = cacheItem.accessToken;
@@ -7330,7 +8973,6 @@
             }
 
             module.exports = TokenCacheItem;
-
         });
         cordova.define("cordova-plugin-ms-adal.UserInfo", function (require, exports, module) {
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
@@ -7343,7 +8985,6 @@
              * Represents information about authorized user.
              */
             function UserInfo(userInfo) {
-
                 userInfo = userInfo || {};
 
                 this.displayableId = userInfo.displayableId;
@@ -7401,10 +9042,8 @@
             };
 
             module.exports = UserInfo;
-
         });
         cordova.define("cordova-plugin-ms-adal.utility", function (require, exports, module) {
-
             // Copyright (c) Microsoft Open Technologies, Inc.  All rights reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
             var __extends = this.__extends || function (d, b) {
@@ -7817,7 +9456,6 @@
                                 configurable: true
                             });
 
-
                             Object.defineProperty(AuthenticatedHttp.prototype, "accept", {
                                 get: function () {
                                     return this._accept;
@@ -7829,7 +9467,6 @@
                                 configurable: true
                             });
 
-
                             Object.defineProperty(AuthenticatedHttp.prototype, "contentType", {
                                 get: function () {
                                     return this._contentType;
@@ -7840,7 +9477,6 @@
                                 enumerable: true,
                                 configurable: true
                             });
-
 
                             AuthenticatedHttp.prototype.ajax = function (request) {
                                 var deferred = new Microsoft.Utility.Deferred();
@@ -7984,9 +9620,9 @@
             /**
              * Decodes the Base64-encoded value into a string with correct utf8 encoding support.
              * See for more details: https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/Base64_encoding_and_decoding#The_Unicode_Problem
-             * 
+             *
              * @param  {String} str Base64-encoded string to decode
-             * 
+             *
              * @return {String}     Decoded string
              *
              */
@@ -8005,7 +9641,6 @@
              * @return {Object}     Raw object that contains data from token
              */
             function parseJWT(jwt) {
-
                 var jwtParseError = new Error("Error parsing JWT token.");
 
                 var jwtParts = jwt.split('.');
@@ -8026,16 +9661,755 @@
             module.exports.extends = __extends;
 
             module.exports.parseJWT = parseJWT;
+        });
 
+        // cordova media
+        cordova.define("cordova-plugin-media.Media", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+             */
+
+            var argscheck = require('cordova/argscheck'),
+                utils = require('cordova/utils'),
+                exec = require('cordova/exec');
+
+            var mediaObjects = {};
+
+            /**
+             * This class provides access to the device media, interfaces to both sound and video
+             *
+             * @constructor
+             * @param src                   The file name or url to play
+             * @param successCallback       The callback to be called when the file is done playing or recording.
+             *                                  successCallback()
+             * @param errorCallback         The callback to be called if there is an error.
+             *                                  errorCallback(int errorCode) - OPTIONAL
+             * @param statusCallback        The callback to be called when media status has changed.
+             *                                  statusCallback(int statusCode) - OPTIONAL
+             */
+            var Media = function (src, successCallback, errorCallback, statusCallback) {
+                argscheck.checkArgs('sFFF', 'Media', arguments);
+                this.id = utils.createUUID();
+                mediaObjects[this.id] = this;
+                this.src = src;
+                this.successCallback = successCallback;
+                this.errorCallback = errorCallback;
+                this.statusCallback = statusCallback;
+                this._duration = -1;
+                this._position = -1;
+                exec(null, this.errorCallback, "Media", "create", [this.id, this.src]);
+            };
+
+            // Media messages
+            Media.MEDIA_STATE = 1;
+            Media.MEDIA_DURATION = 2;
+            Media.MEDIA_POSITION = 3;
+            Media.MEDIA_ERROR = 9;
+
+            // Media states
+            Media.MEDIA_NONE = 0;
+            Media.MEDIA_STARTING = 1;
+            Media.MEDIA_RUNNING = 2;
+            Media.MEDIA_PAUSED = 3;
+            Media.MEDIA_STOPPED = 4;
+            Media.MEDIA_MSG = ["None", "Starting", "Running", "Paused", "Stopped"];
+
+            // "static" function to return existing objs.
+            Media.get = function (id) {
+                return mediaObjects[id];
+            };
+
+            /**
+             * Start or resume playing audio file.
+             */
+            Media.prototype.play = function (options) {
+                exec(null, null, "Media", "startPlayingAudio", [this.id, this.src, options]);
+            };
+
+            /**
+             * Stop playing audio file.
+             */
+            Media.prototype.stop = function () {
+                var me = this;
+                exec(function () {
+                    me._position = 0;
+                }, this.errorCallback, "Media", "stopPlayingAudio", [this.id]);
+            };
+
+            /**
+             * Seek or jump to a new time in the track..
+             */
+            Media.prototype.seekTo = function (milliseconds) {
+                var me = this;
+                exec(function (p) {
+                    me._position = p;
+                }, this.errorCallback, "Media", "seekToAudio", [this.id, milliseconds]);
+            };
+
+            /**
+             * Pause playing audio file.
+             */
+            Media.prototype.pause = function () {
+                exec(null, this.errorCallback, "Media", "pausePlayingAudio", [this.id]);
+            };
+
+            /**
+             * Get duration of an audio file.
+             * The duration is only set for audio that is playing, paused or stopped.
+             *
+             * @return      duration or -1 if not known.
+             */
+            Media.prototype.getDuration = function () {
+                return this._duration;
+            };
+
+            /**
+             * Get position of audio.
+             */
+            Media.prototype.getCurrentPosition = function (success, fail) {
+                var me = this;
+                exec(function (p) {
+                    me._position = p;
+                    success(p);
+                }, fail, "Media", "getCurrentPositionAudio", [this.id]);
+            };
+
+            /**
+             * Start recording audio file.
+             */
+            Media.prototype.startRecord = function () {
+                exec(null, this.errorCallback, "Media", "startRecordingAudio", [this.id, this.src]);
+            };
+
+            /**
+             * Stop recording audio file.
+             */
+            Media.prototype.stopRecord = function () {
+                exec(null, this.errorCallback, "Media", "stopRecordingAudio", [this.id]);
+            };
+
+            /**
+             * Pause recording audio file.
+             */
+            Media.prototype.pauseRecord = function () {
+                exec(null, this.errorCallback, "Media", "pauseRecordingAudio", [this.id]);
+            };
+
+            /**
+             * Resume recording audio file.
+             */
+            Media.prototype.resumeRecord = function () {
+                exec(null, this.errorCallback, "Media", "resumeRecordingAudio", [this.id]);
+            };
+
+            /**
+             * Release the resources.
+             */
+            Media.prototype.release = function () {
+                exec(null, this.errorCallback, "Media", "release", [this.id]);
+            };
+
+            /**
+             * Adjust the volume.
+             */
+            Media.prototype.setVolume = function (volume) {
+                exec(null, null, "Media", "setVolume", [this.id, volume]);
+            };
+
+            /**
+             * Adjust the playback rate.
+             */
+            Media.prototype.setRate = function (rate) {
+                if (cordova.platformId === 'ios') {
+                    exec(null, null, "Media", "setRate", [this.id, rate]);
+                } else {
+                    console.warn('media.setRate method is currently not supported for', cordova.platformId, 'platform.');
+                }
+            };
+
+            /**
+             * Get amplitude of audio.
+             */
+            Media.prototype.getCurrentAmplitude = function (success, fail) {
+                exec(function (p) {
+                    success(p);
+                }, fail, "Media", "getCurrentAmplitudeAudio", [this.id]);
+            };
+
+            /**
+             * Audio has status update.
+             * PRIVATE
+             *
+             * @param id            The media object id (string)
+             * @param msgType       The 'type' of update this is
+             * @param value         Use of value is determined by the msgType
+             */
+            Media.onStatus = function (id, msgType, value) {
+                var media = mediaObjects[id];
+
+                if (media) {
+                    switch (msgType) {
+                        case Media.MEDIA_STATE:
+                            if (media.statusCallback) {
+                                media.statusCallback(value);
+                            }
+                            if (value == Media.MEDIA_STOPPED) {
+                                if (media.successCallback) {
+                                    media.successCallback();
+                                }
+                            }
+                            break;
+                        case Media.MEDIA_DURATION:
+                            media._duration = value;
+                            break;
+                        case Media.MEDIA_ERROR:
+                            if (media.errorCallback) {
+                                media.errorCallback(value);
+                            }
+                            break;
+                        case Media.MEDIA_POSITION:
+                            media._position = Number(value);
+                            break;
+                        default:
+                            if (console.error) {
+                                console.error("Unhandled Media.onStatus :: " + msgType);
+                            }
+                            break;
+                    }
+                } else if (console.error) {
+                    console.error("Received Media.onStatus callback for unknown media :: " + id);
+                }
+            };
+
+            module.exports = Media;
+
+            function onMessageFromNative(msg) {
+                if (msg.action == 'status') {
+                    Media.onStatus(msg.status.id, msg.status.msgType, msg.status.value);
+                } else {
+                    throw new Error('Unknown media action' + msg.action);
+                }
+            }
+
+            if (cordova.platformId === 'android' || cordova.platformId === 'amazon-fireos' || cordova.platformId === 'windowsphone') {
+                var channel = require('cordova/channel');
+
+                channel.createSticky('onMediaPluginReady');
+                channel.waitForInitialization('onMediaPluginReady');
+
+                channel.onCordovaReady.subscribe(function () {
+                    exec(onMessageFromNative, undefined, 'Media', 'messageChannel', []);
+                    channel.initializationComplete('onMediaPluginReady');
+                });
+            }
+        });
+        cordova.define("cordova-plugin-media.MediaError", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+             */
+
+            /**
+             * This class contains information about any Media errors.
+             */
+            /*
+             According to :: http://dev.w3.org/html5/spec-author-view/video.html#mediaerror
+             We should never be creating these objects, we should just implement the interface
+             which has 1 property for an instance, 'code'
+
+             instead of doing :
+                errorCallbackFunction( new MediaError(3,'msg') );
+            we should simply use a literal :
+                errorCallbackFunction( {'code':3} );
+             */
+
+            var _MediaError = window.MediaError;
+
+            if (!_MediaError) {
+                window.MediaError = _MediaError = function (code, msg) {
+                    this.code = (typeof code != 'undefined') ? code : null;
+                    this.message = msg || ""; // message is NON-standard! do not use!
+                };
+            }
+
+            _MediaError.MEDIA_ERR_NONE_ACTIVE = _MediaError.MEDIA_ERR_NONE_ACTIVE || 0;
+            _MediaError.MEDIA_ERR_ABORTED = _MediaError.MEDIA_ERR_ABORTED || 1;
+            _MediaError.MEDIA_ERR_NETWORK = _MediaError.MEDIA_ERR_NETWORK || 2;
+            _MediaError.MEDIA_ERR_DECODE = _MediaError.MEDIA_ERR_DECODE || 3;
+            _MediaError.MEDIA_ERR_NONE_SUPPORTED = _MediaError.MEDIA_ERR_NONE_SUPPORTED || 4;
+            // TODO: MediaError.MEDIA_ERR_NONE_SUPPORTED is legacy, the W3 spec now defines it as below.
+            // as defined by http://dev.w3.org/html5/spec-author-view/video.html#error-codes
+            _MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED = _MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED || 4;
+
+            module.exports = _MediaError;
+        });
+
+        // Globalization: https://github.com/dronahq/cordova-plugin-globalizatino
+        cordova.define("cordova-plugin-globalization.globalization", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            var argscheck = require('cordova/argscheck'),
+                exec = require('cordova/exec');
+
+            var globalization = {
+                /**
+                * Returns the string identifier for the client's current language.
+                * It returns the language identifier string to the successCB callback with a
+                * properties object as a parameter. If there is an error getting the language,
+                * then the errorCB callback is invoked.
+                *
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                *
+                * @return Object.value {String}: The language identifier
+                *
+                * @error GlobalizationError.UNKNOWN_ERROR
+                *
+                * Example
+                *    globalization.getPreferredLanguage(function (language) {alert('language:' + language.value + '\n');},
+                *                                function () {});
+                */
+                getPreferredLanguage: function (successCB, failureCB) {
+                    argscheck.checkArgs('fF', 'Globalization.getPreferredLanguage', arguments);
+                    exec(successCB, failureCB, "Globalization", "getPreferredLanguage", []);
+                },
+
+                /**
+                * Returns the string identifier for the client's current locale setting.
+                * It returns the locale identifier string to the successCB callback with a
+                * properties object as a parameter. If there is an error getting the locale,
+                * then the errorCB callback is invoked.
+                *
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                *
+                * @return Object.value {String}: The locale identifier
+                *
+                * @error GlobalizationError.UNKNOWN_ERROR
+                *
+                * Example
+                *    globalization.getLocaleName(function (locale) {alert('locale:' + locale.value + '\n');},
+                *                                function () {});
+                */
+                getLocaleName: function (successCB, failureCB) {
+                    argscheck.checkArgs('fF', 'Globalization.getLocaleName', arguments);
+                    exec(successCB, failureCB, "Globalization", "getLocaleName", []);
+                },
+
+                /**
+                * Returns a date formatted as a string according to the client's user preferences and
+                * calendar using the time zone of the client. It returns the formatted date string to the
+                * successCB callback with a properties object as a parameter. If there is an error
+                * formatting the date, then the errorCB callback is invoked.
+                *
+                * The defaults are: formatLenght="short" and selector="date and time"
+                *
+                * @param {Date} date
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                * @param {Object} options {optional}
+                *            formatLength {String}: 'short', 'medium', 'long', or 'full'
+                *            selector {String}: 'date', 'time', or 'date and time'
+                *
+                * @return Object.value {String}: The localized date string
+                *
+                * @error GlobalizationError.FORMATTING_ERROR
+                *
+                * Example
+                *    globalization.dateToString(new Date(),
+                *                function (date) {alert('date:' + date.value + '\n');},
+                *                function (errorCode) {alert(errorCode);},
+                *                {formatLength:'short'});
+                */
+                dateToString: function (date, successCB, failureCB, options) {
+                    argscheck.checkArgs('dfFO', 'Globalization.dateToString', arguments);
+                    var dateValue = date.valueOf();
+                    exec(successCB, failureCB, "Globalization", "dateToString", [{ "date": dateValue, "options": options }]);
+                },
+
+                /**
+                * Parses a date formatted as a string according to the client's user
+                * preferences and calendar using the time zone of the client and returns
+                * the corresponding date object. It returns the date to the successCB
+                * callback with a properties object as a parameter. If there is an error
+                * parsing the date string, then the errorCB callback is invoked.
+                *
+                * The defaults are: formatLength="short" and selector="date and time"
+                *
+                * @param {String} dateString
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                * @param {Object} options {optional}
+                *            formatLength {String}: 'short', 'medium', 'long', or 'full'
+                *            selector {String}: 'date', 'time', or 'date and time'
+                *
+                * @return    Object.year {Number}: The four digit year
+                *            Object.month {Number}: The month from (0 - 11)
+                *            Object.day {Number}: The day from (1 - 31)
+                *            Object.hour {Number}: The hour from (0 - 23)
+                *            Object.minute {Number}: The minute from (0 - 59)
+                *            Object.second {Number}: The second from (0 - 59)
+                *            Object.millisecond {Number}: The milliseconds (from 0 - 999),
+                *                                        not available on all platforms
+                *
+                * @error GlobalizationError.PARSING_ERROR
+                *
+                * Example
+                *    globalization.stringToDate('4/11/2011',
+                *                function (date) { alert('Month:' + date.month + '\n' +
+                *                    'Day:' + date.day + '\n' +
+                *                    'Year:' + date.year + '\n');},
+                *                function (errorCode) {alert(errorCode);},
+                *                {selector:'date'});
+                */
+                stringToDate: function (dateString, successCB, failureCB, options) {
+                    argscheck.checkArgs('sfFO', 'Globalization.stringToDate', arguments);
+                    exec(successCB, failureCB, "Globalization", "stringToDate", [{ "dateString": dateString, "options": options }]);
+                },
+
+                /**
+                * Returns a pattern string for formatting and parsing dates according to the client's
+                * user preferences. It returns the pattern to the successCB callback with a
+                * properties object as a parameter. If there is an error obtaining the pattern,
+                * then the errorCB callback is invoked.
+                *
+                * The defaults are: formatLength="short" and selector="date and time"
+                *
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                * @param {Object} options {optional}
+                *            formatLength {String}: 'short', 'medium', 'long', or 'full'
+                *            selector {String}: 'date', 'time', or 'date and time'
+                *
+                * @return    Object.pattern {String}: The date and time pattern for formatting and parsing dates.
+                *                                    The patterns follow Unicode Technical Standard #35
+                *                                    http://unicode.org/reports/tr35/tr35-4.html
+                *            Object.timezone {String}: The abbreviated name of the time zone on the client
+                *            Object.utc_offset {Number}: The current difference in seconds between the client's
+                *                                        time zone and coordinated universal time.
+                *            Object.dst_offset {Number}: The current daylight saving time offset in seconds
+                *                                        between the client's non-daylight saving's time zone
+                *                                        and the client's daylight saving's time zone.
+                *
+                * @error GlobalizationError.PATTERN_ERROR
+                *
+                * Example
+                *    globalization.getDatePattern(
+                *                function (date) {alert('pattern:' + date.pattern + '\n');},
+                *                function () {},
+                *                {formatLength:'short'});
+                */
+                getDatePattern: function (successCB, failureCB, options) {
+                    argscheck.checkArgs('fFO', 'Globalization.getDatePattern', arguments);
+                    exec(successCB, failureCB, "Globalization", "getDatePattern", [{ "options": options }]);
+                },
+
+                /**
+                * Returns an array of either the names of the months or days of the week
+                * according to the client's user preferences and calendar. It returns the array of names to the
+                * successCB callback with a properties object as a parameter. If there is an error obtaining the
+                * names, then the errorCB callback is invoked.
+                *
+                * The defaults are: type="wide" and item="months"
+                *
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                * @param {Object} options {optional}
+                *            type {String}: 'narrow' or 'wide'
+                *            item {String}: 'months', or 'days'
+                *
+                * @return Object.value {Array{String}}: The array of names starting from either
+                *                                        the first month in the year or the
+                *                                        first day of the week.
+                * @error GlobalizationError.UNKNOWN_ERROR
+                *
+                * Example
+                *    globalization.getDateNames(function (names) {
+                *        for(var i = 0; i < names.value.length; i++) {
+                *            alert('Month:' + names.value[i] + '\n');}},
+                *        function () {});
+                */
+                getDateNames: function (successCB, failureCB, options) {
+                    argscheck.checkArgs('fFO', 'Globalization.getDateNames', arguments);
+                    exec(successCB, failureCB, "Globalization", "getDateNames", [{ "options": options }]);
+                },
+
+                /**
+                * Returns whether daylight savings time is in effect for a given date using the client's
+                * time zone and calendar. It returns whether or not daylight savings time is in effect
+                * to the successCB callback with a properties object as a parameter. If there is an error
+                * reading the date, then the errorCB callback is invoked.
+                *
+                * @param {Date} date
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                *
+                * @return Object.dst {Boolean}: The value "true" indicates that daylight savings time is
+                *                                in effect for the given date and "false" indicate that it is not.
+                *
+                * @error GlobalizationError.UNKNOWN_ERROR
+                *
+                * Example
+                *    globalization.isDayLightSavingsTime(new Date(),
+                *                function (date) {alert('dst:' + date.dst + '\n');}
+                *                function () {});
+                */
+                isDayLightSavingsTime: function (date, successCB, failureCB) {
+                    argscheck.checkArgs('dfF', 'Globalization.isDayLightSavingsTime', arguments);
+                    var dateValue = date.valueOf();
+                    exec(successCB, failureCB, "Globalization", "isDayLightSavingsTime", [{ "date": dateValue }]);
+                },
+
+                /**
+                * Returns the first day of the week according to the client's user preferences and calendar.
+                * The days of the week are numbered starting from 1 where 1 is considered to be Sunday.
+                * It returns the day to the successCB callback with a properties object as a parameter.
+                * If there is an error obtaining the pattern, then the errorCB callback is invoked.
+                *
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                *
+                * @return Object.value {Number}: The number of the first day of the week.
+                *
+                * @error GlobalizationError.UNKNOWN_ERROR
+                *
+                * Example
+                *    globalization.getFirstDayOfWeek(function (day)
+                *                { alert('Day:' + day.value + '\n');},
+                *                function () {});
+                */
+                getFirstDayOfWeek: function (successCB, failureCB) {
+                    argscheck.checkArgs('fF', 'Globalization.getFirstDayOfWeek', arguments);
+                    exec(successCB, failureCB, "Globalization", "getFirstDayOfWeek", []);
+                },
+
+                /**
+                * Returns a number formatted as a string according to the client's user preferences.
+                * It returns the formatted number string to the successCB callback with a properties object as a
+                * parameter. If there is an error formatting the number, then the errorCB callback is invoked.
+                *
+                * The defaults are: type="decimal"
+                *
+                * @param {Number} number
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                * @param {Object} options {optional}
+                *            type {String}: 'decimal', "percent", or 'currency'
+                *
+                * @return Object.value {String}: The formatted number string.
+                *
+                * @error GlobalizationError.FORMATTING_ERROR
+                *
+                * Example
+                *    globalization.numberToString(3.25,
+                *                function (number) {alert('number:' + number.value + '\n');},
+                *                function () {},
+                *                {type:'decimal'});
+                */
+                numberToString: function (number, successCB, failureCB, options) {
+                    argscheck.checkArgs('nfFO', 'Globalization.numberToString', arguments);
+                    exec(successCB, failureCB, "Globalization", "numberToString", [{ "number": number, "options": options }]);
+                },
+
+                /**
+                * Parses a number formatted as a string according to the client's user preferences and
+                * returns the corresponding number. It returns the number to the successCB callback with a
+                * properties object as a parameter. If there is an error parsing the number string, then
+                * the errorCB callback is invoked.
+                *
+                * The defaults are: type="decimal"
+                *
+                * @param {String} numberString
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                * @param {Object} options {optional}
+                *            type {String}: 'decimal', "percent", or 'currency'
+                *
+                * @return Object.value {Number}: The parsed number.
+                *
+                * @error GlobalizationError.PARSING_ERROR
+                *
+                * Example
+                *    globalization.stringToNumber('1234.56',
+                *                function (number) {alert('Number:' + number.value + '\n');},
+                *                function () { alert('Error parsing number');});
+                */
+                stringToNumber: function (numberString, successCB, failureCB, options) {
+                    argscheck.checkArgs('sfFO', 'Globalization.stringToNumber', arguments);
+                    exec(successCB, failureCB, "Globalization", "stringToNumber", [{ "numberString": numberString, "options": options }]);
+                },
+
+                /**
+                * Returns a pattern string for formatting and parsing numbers according to the client's user
+                * preferences. It returns the pattern to the successCB callback with a properties object as a
+                * parameter. If there is an error obtaining the pattern, then the errorCB callback is invoked.
+                *
+                * The defaults are: type="decimal"
+                *
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                * @param {Object} options {optional}
+                *            type {String}: 'decimal', "percent", or 'currency'
+                *
+                * @return    Object.pattern {String}: The number pattern for formatting and parsing numbers.
+                *                                    The patterns follow Unicode Technical Standard #35.
+                *                                    http://unicode.org/reports/tr35/tr35-4.html
+                *            Object.symbol {String}: The symbol to be used when formatting and parsing
+                *                                    e.g., percent or currency symbol.
+                *            Object.fraction {Number}: The number of fractional digits to use when parsing and
+                *                                    formatting numbers.
+                *            Object.rounding {Number}: The rounding increment to use when parsing and formatting.
+                *            Object.positive {String}: The symbol to use for positive numbers when parsing and formatting.
+                *            Object.negative: {String}: The symbol to use for negative numbers when parsing and formatting.
+                *            Object.decimal: {String}: The decimal symbol to use for parsing and formatting.
+                *            Object.grouping: {String}: The grouping symbol to use for parsing and formatting.
+                *
+                * @error GlobalizationError.PATTERN_ERROR
+                *
+                * Example
+                *    globalization.getNumberPattern(
+                *                function (pattern) {alert('Pattern:' + pattern.pattern + '\n');},
+                *                function () {});
+                */
+                getNumberPattern: function (successCB, failureCB, options) {
+                    argscheck.checkArgs('fFO', 'Globalization.getNumberPattern', arguments);
+                    exec(successCB, failureCB, "Globalization", "getNumberPattern", [{ "options": options }]);
+                },
+
+                /**
+                * Returns a pattern string for formatting and parsing currency values according to the client's
+                * user preferences and ISO 4217 currency code. It returns the pattern to the successCB callback with a
+                * properties object as a parameter. If there is an error obtaining the pattern, then the errorCB
+                * callback is invoked.
+                *
+                * @param {String} currencyCode
+                * @param {Function} successCB
+                * @param {Function} errorCB
+                *
+                * @return    Object.pattern {String}: The currency pattern for formatting and parsing currency values.
+                *                                    The patterns follow Unicode Technical Standard #35
+                *                                    http://unicode.org/reports/tr35/tr35-4.html
+                *            Object.code {String}: The ISO 4217 currency code for the pattern.
+                *            Object.fraction {Number}: The number of fractional digits to use when parsing and
+                *                                    formatting currency.
+                *            Object.rounding {Number}: The rounding increment to use when parsing and formatting.
+                *            Object.decimal: {String}: The decimal symbol to use for parsing and formatting.
+                *            Object.grouping: {String}: The grouping symbol to use for parsing and formatting.
+                *
+                * @error GlobalizationError.FORMATTING_ERROR
+                *
+                * Example
+                *    globalization.getCurrencyPattern('EUR',
+                *                function (currency) {alert('Pattern:' + currency.pattern + '\n');}
+                *                function () {});
+                */
+                getCurrencyPattern: function (currencyCode, successCB, failureCB) {
+                    argscheck.checkArgs('sfF', 'Globalization.getCurrencyPattern', arguments);
+                    exec(successCB, failureCB, "Globalization", "getCurrencyPattern", [{ "currencyCode": currencyCode }]);
+                }
+            };
+
+            module.exports = globalization;
+        });
+        cordova.define("cordova-plugin-globalization.GlobalizationError", function (require, exports, module) {
+            /*
+             *
+             * Licensed to the Apache Software Foundation (ASF) under one
+             * or more contributor license agreements.  See the NOTICE file
+             * distributed with this work for additional information
+             * regarding copyright ownership.  The ASF licenses this file
+             * to you under the Apache License, Version 2.0 (the
+             * "License"); you may not use this file except in compliance
+             * with the License.  You may obtain a copy of the License at
+             *
+             *   http://www.apache.org/licenses/LICENSE-2.0
+             *
+             * Unless required by applicable law or agreed to in writing,
+             * software distributed under the License is distributed on an
+             * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+             * KIND, either express or implied.  See the License for the
+             * specific language governing permissions and limitations
+             * under the License.
+             *
+            */
+
+            /**
+             * Globalization error object
+             *
+             * @constructor
+             * @param code
+             * @param message
+             */
+            var GlobalizationError = function (code, message) {
+                this.code = code || null;
+                this.message = message || '';
+            };
+
+            // Globalization error codes
+            GlobalizationError.UNKNOWN_ERROR = 0;
+            GlobalizationError.FORMATTING_ERROR = 1;
+            GlobalizationError.PARSING_ERROR = 2;
+            GlobalizationError.PATTERN_ERROR = 3;
+
+            module.exports = GlobalizationError;
         });
     };
 
     var _fnCordovaCommon = function (CORDOVA_JS_BUILD_LABEL) {
-
         // file: src/cordova.js
         define("cordova", function (require, exports, module) {
-
-
             var channel = require('cordova/channel');
             var platform = require('cordova/platform');
 
@@ -8104,7 +10478,6 @@
                 }
                 return event;
             }
-
 
             var cordova = {
                 define: define,
@@ -8252,14 +10625,11 @@
                 }
             };
 
-
             module.exports = cordova;
-
         });
 
         // file: src/common/argscheck.js
         define("cordova/argscheck", function (require, exports, module) {
-
             var exec = require('cordova/exec');
             var utils = require('cordova/utils');
 
@@ -8319,13 +10689,10 @@
             moduleExports.checkArgs = checkArgs;
             moduleExports.getValue = getValue;
             moduleExports.enableChecks = true;
-
-
         });
 
         // file: src/common/base64.js
         define("cordova/base64", function (require, exports, module) {
-
             var base64 = exports;
 
             base64.fromArrayBuffer = function (arrayBuffer) {
@@ -8388,12 +10755,10 @@
                 }
                 return output;
             }
-
         });
 
         // file: src/common/builder.js
         define("cordova/builder", function (require, exports, module) {
-
             var utils = require('cordova/utils');
 
             function each(objects, func, context) {
@@ -8501,12 +10866,10 @@
             exports.recursiveMerge = recursiveMerge;
             exports.assignOrWrapInDeprecateGetter = assignOrWrapInDeprecateGetter;
             exports.replaceHookForTesting = function () { };
-
         });
 
         // file: src/common/channel.js
         define("cordova/channel", function (require, exports, module) {
-
             var utils = require('cordova/utils'),
                 nextGuid = 1;
 
@@ -8713,7 +11076,6 @@
                 }
             };
 
-
             // defining them here so they are ready super fast!
             // DOM event that is received when the web page is loaded and parsed.
             channel.createSticky('onDOMContentLoaded');
@@ -8746,18 +11108,14 @@
             channel.waitForInitialization('onDOMContentLoaded');
 
             module.exports = channel;
-
         });
 
         // file: src/common/exec/proxy.js
         define("cordova/exec/proxy", function (require, exports, module) {
-
-
             // internal map of proxy function
             var CommandProxyMap = {};
 
             module.exports = {
-
                 // example: cordova.commandProxy.add("Accelerometer",{getCurrentAcceleration: function(successCallback, errorCallback, options) {...},...);
                 add: function (id, proxyObj) {
                     console.log("adding proxy for " + id);
@@ -8781,7 +11139,6 @@
 
         // file: src/common/init.js
         define("cordova/init", function (require, exports, module) {
-
             var channel = require('cordova/channel');
             var cordova = require('cordova');
             var modulemapper = require('cordova/modulemapper');
@@ -8893,17 +11250,12 @@
 
                     //Also set the flag DronaHQ.AreYouReady
                     DronaHQ.IsReady = true;
-
                 }, channel.deviceReadyChannelsArray);
-
             }, platformInitChannelsArray);
-
-
         });
 
         // file: src/common/init_b.js
         define("cordova/init_b", function (require, exports, module) {
-
             var channel = require('cordova/channel');
             var cordova = require('cordova');
             var platform = require('cordova/platform');
@@ -8989,7 +11341,6 @@
              * Create all cordova objects once native side is ready.
              */
             channel.join(function () {
-
                 platform.initialize && platform.initialize();
 
                 // Fire event to notify that all objects are created
@@ -9001,14 +11352,11 @@
                 channel.join(function () {
                     require('cordova').fireDocumentEvent('deviceready');
                 }, channel.deviceReadyChannelsArray);
-
             }, platformInitChannelsArray);
-
         });
 
         // file: src/common/modulemapper.js
         define("cordova/modulemapper", function (require, exports, module) {
-
             var builder = require('cordova/builder'),
                 moduleMap = define.moduleMap,
                 symbolList,
@@ -9103,13 +11451,10 @@
             };
 
             exports.reset();
-
-
         });
 
         // file: src/common/modulemapper_b.js
         define("cordova/modulemapper_b", function (require, exports, module) {
-
             var builder = require('cordova/builder'),
                 symbolList = [],
                 deprecationMap;
@@ -9200,8 +11545,6 @@
             };
 
             exports.reset();
-
-
         });
 
         //file: cordova_plugins.js - DronaHQ.js customization
@@ -9209,7 +11552,6 @@
          * Hence, we are putting this as a part of this js only
          */
         define('cordova/plugin_list', function (require, exports, module) {
-
             var arrDevice = [{
                 "file": "plugins/cordova-plugin-device/www/device.js",
                 "id": "cordova-plugin-device.device",
@@ -9218,208 +11560,258 @@
                 ]
             }];
 
-            var arrCamera = [{
-                "file": "plugins/cordova-plugin-camera/www/CameraConstants.js",
-                "id": "cordova-plugin-camera.Camera",
-                "clobbers": [
-                    "Camera"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-camera/www/CameraPopoverOptions.js",
-                "id": "cordova-plugin-camera.CameraPopoverOptions",
-                "clobbers": [
-                    "CameraPopoverOptions"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-camera/www/Camera.js",
-                "id": "cordova-plugin-camera.camera",
-                "clobbers": [
-                    "navigator.camera"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-camera/www/CameraPopoverHandle.js",
-                "id": "cordova-plugin-camera.CameraPopoverHandle",
-                "clobbers": [
-                    "CameraPopoverHandle"
-                ]
-            }];
+            var arrCamera = [
+                {
+                    "file": "plugins/cordova-plugin-camera/www/CameraConstants.js",
+                    "id": "cordova-plugin-camera.Camera",
+                    "clobbers": [
+                        "Camera"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-camera/www/CameraPopoverOptions.js",
+                    "id": "cordova-plugin-camera.CameraPopoverOptions",
+                    "clobbers": [
+                        "CameraPopoverOptions"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-camera/www/Camera.js",
+                    "id": "cordova-plugin-camera.camera",
+                    "clobbers": [
+                        "navigator.camera"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-camera/www/CameraPopoverHandle.js",
+                    "id": "cordova-plugin-camera.CameraPopoverHandle",
+                    "clobbers": [
+                        "CameraPopoverHandle"
+                    ]
+                }
+            ];
 
-            var arrInAppBrowser = [{
+            var arrInAppBrowser = [
+                {
                 "file": "plugins/cordova-plugin-inappbrowser/www/inappbrowser.js",
                 "id": "cordova-plugin-inappbrowser.inappbrowser",
                 "clobbers": [
                     "cordova.InAppBrowser.open",
                     "window.open"
                 ]
-            }];
+                }
+            ];
 
-            var arrDronaHQ = [{
+            var arrDronaHQ = [
+                {
                 "id": "cordova-plugin-dronahq.user",
                 "clobbers": [
                     "DronaHQ.user"
                 ]
-            }, {
-                "id": "cordova-plugin-dronahq.notification",
+                }, {
+                    "id": "cordova-plugin-dronahq.notification",
+                    "clobbers": [
+                        "DronaHQ.notification"
+                    ]
+                }, {
+                    "id": "cordova-plugin-dronahq.app",
+                    "clobbers": [
+                        "DronaHQ.app"
+                    ]
+                }, {
+                    "id": "cordova-plugin-dronahq.sync",
+                    "clobbers": [
+                        "DronaHQ.sync"
+                    ]
+                }, {
+                    "id": "cordova-plugin-dronahq.kvstore",
+                    "clobbers": [
+                        "DronaHQ.KVStore"
+                    ]
+                }
+            ];
+
+            var arrTts = [{
+                "id": "cordova-plugin-tts",
                 "clobbers": [
-                    "DronaHQ.notification"
+                    "tts"
                 ]
-            }, {
-                "id": "cordova-plugin-dronahq.app",
+            }]
+            
+            var arrNativeStorage = [{
+                "id": "cordova-plugin-nativestorage.mainHandle",
                 "clobbers": [
                     "DronaHQ.app"
                 ]
-            }, {
-                "id": "cordova-plugin-dronahq.sync",
+            },{
+                "id": "cordova-plugin-nativestorage.NativeStorageError",
                 "clobbers": [
-                    "DronaHQ.sync"
+                    "NativeStorage.NativeStorageError"
                 ]
-            }, {
-                "id": "cordova-plugin-dronahq.kvstore",
+            },{
+                "id": "cordova-plugin-nativestorage.LocalStorageHandle",
                 "clobbers": [
-                    "DronaHQ.KVStore"
+                    "NativeStorage.LocalStorageHandle"
                 ]
             }];
 
-            var arrFileTransfer = [{
+            var arrfileOpener2 = [
+                {
+                    'id':'cordova-plugin-file-opener2',
+                    "clobbers":[
+                        "FileOpener2"
+                    ]
+                }
+            ]
+            var arrSTT = [{
+                "id": "cordova-plugin-speechrecognition",
+                "clobbers": [
+                    "plugins.speechRecognition"
+                ]
+            }]
+            
+            var arrFileTransfer = [
+                {
                 "file": "plugins/cordova-plugin-file-transfer/www/FileTransferError.js",
                 "id": "cordova-plugin-file-transfer.FileTransferError",
                 "clobbers": [
                     "window.FileTransferError"
-                ]
-            }, {
+                    ]
+                }, 
+                {
                 "file": "plugins/cordova-plugin-file-transfer/www/FileTransfer.js",
                 "id": "cordova-plugin-file-transfer.FileTransfer",
                 "clobbers": [
                     "window.FileTransfer"
-                ]
-            }];
+                    ]
+                }
+            ];
 
-            var arrFile = [{
-                "file": "plugins/cordova-plugin-file/www/DirectoryEntry.js",
-                "id": "cordova-plugin-file.DirectoryEntry",
-                "clobbers": [
-                    "window.DirectoryEntry"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/DirectoryReader.js",
-                "id": "cordova-plugin-file.DirectoryReader",
-                "clobbers": [
-                    "window.DirectoryReader"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/Entry.js",
-                "id": "cordova-plugin-file.Entry",
-                "clobbers": [
-                    "window.Entry"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/File.js",
-                "id": "cordova-plugin-file.File",
-                "clobbers": [
-                    "window.File"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/FileEntry.js",
-                "id": "cordova-plugin-file.FileEntry",
-                "clobbers": [
-                    "window.FileEntry"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/FileError.js",
-                "id": "cordova-plugin-file.FileError",
-                "clobbers": [
-                    "window.FileError"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/FileReader.js",
-                "id": "cordova-plugin-file.FileReader",
-                "clobbers": [
-                    "window.FileReader"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/FileSystem.js",
-                "id": "cordova-plugin-file.FileSystem",
-                "clobbers": [
-                    "window.FileSystem"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/FileUploadOptions.js",
-                "id": "cordova-plugin-file.FileUploadOptions",
-                "clobbers": [
-                    "window.FileUploadOptions"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/FileUploadResult.js",
-                "id": "cordova-plugin-file.FileUploadResult",
-                "clobbers": [
-                    "window.FileUploadResult"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/FileWriter.js",
-                "id": "cordova-plugin-file.FileWriter",
-                "clobbers": [
-                    "window.FileWriter"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/Flags.js",
-                "id": "cordova-plugin-file.Flags",
-                "clobbers": [
-                    "window.Flags"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/LocalFileSystem.js",
-                "id": "cordova-plugin-file.LocalFileSystem",
-                "clobbers": [
-                    "window.LocalFileSystem"
-                ],
-                "merges": [
-                    "window"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/Metadata.js",
-                "id": "cordova-plugin-file.Metadata",
-                "clobbers": [
-                    "window.Metadata"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/ProgressEvent.js",
-                "id": "cordova-plugin-file.ProgressEvent",
-                "clobbers": [
-                    "window.ProgressEvent"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/fileSystems.js",
-                "id": "cordova-plugin-file.fileSystems"
-            }, {
-                "file": "plugins/cordova-plugin-file/www/requestFileSystem.js",
-                "id": "cordova-plugin-file.requestFileSystem",
-                "clobbers": [
-                    "window.requestFileSystem"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/resolveLocalFileSystemURI.js",
-                "id": "cordova-plugin-file.resolveLocalFileSystemURI",
-                "merges": [
-                    "window"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/ios/FileSystem.js",
-                "id": "cordova-plugin-file.iosFileSystem",
-                "merges": [
-                    "FileSystem"
-                ]
-            }, {
-                "file": "plugins/cordova-plugin-file/www/fileSystems-roots.js",
-                "id": "cordova-plugin-file.fileSystems-roots",
-                "runs": true
-            }, {
-                "file": "plugins/cordova-plugin-file/www/fileSystemPaths.js",
-                "id": "cordova-plugin-file.fileSystemPaths",
-                "merges": [
-                    "cordova"
-                ],
-                "runs": true
-            }];
+            var arrFile = [
+                {
+                    "file": "plugins/cordova-plugin-file/www/DirectoryEntry.js",
+                    "id": "cordova-plugin-file.DirectoryEntry",
+                    "clobbers": [
+                        "window.DirectoryEntry"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/DirectoryReader.js",
+                    "id": "cordova-plugin-file.DirectoryReader",
+                    "clobbers": [
+                        "window.DirectoryReader"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/Entry.js",
+                    "id": "cordova-plugin-file.Entry",
+                    "clobbers": [
+                        "window.Entry"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/File.js",
+                    "id": "cordova-plugin-file.File",
+                    "clobbers": [
+                        "window.File"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/FileEntry.js",
+                    "id": "cordova-plugin-file.FileEntry",
+                    "clobbers": [
+                        "window.FileEntry"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/FileError.js",
+                    "id": "cordova-plugin-file.FileError",
+                    "clobbers": [
+                        "window.FileError"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/FileReader.js",
+                    "id": "cordova-plugin-file.FileReader",
+                    "clobbers": [
+                        "window.FileReader"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/FileSystem.js",
+                    "id": "cordova-plugin-file.FileSystem",
+                    "clobbers": [
+                        "window.FileSystem"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/FileUploadOptions.js",
+                    "id": "cordova-plugin-file.FileUploadOptions",
+                    "clobbers": [
+                        "window.FileUploadOptions"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/FileUploadResult.js",
+                    "id": "cordova-plugin-file.FileUploadResult",
+                    "clobbers": [
+                        "window.FileUploadResult"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/FileWriter.js",
+                    "id": "cordova-plugin-file.FileWriter",
+                    "clobbers": [
+                        "window.FileWriter"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/Flags.js",
+                    "id": "cordova-plugin-file.Flags",
+                    "clobbers": [
+                        "window.Flags"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/LocalFileSystem.js",
+                    "id": "cordova-plugin-file.LocalFileSystem",
+                    "clobbers": [
+                        "window.LocalFileSystem"
+                    ],
+                    "merges": [
+                        "window"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/Metadata.js",
+                    "id": "cordova-plugin-file.Metadata",
+                    "clobbers": [
+                        "window.Metadata"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/ProgressEvent.js",
+                    "id": "cordova-plugin-file.ProgressEvent",
+                    "clobbers": [
+                        "window.ProgressEvent"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/fileSystems.js",
+                    "id": "cordova-plugin-file.fileSystems"
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/requestFileSystem.js",
+                    "id": "cordova-plugin-file.requestFileSystem",
+                    "clobbers": [
+                        "window.requestFileSystem"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/resolveLocalFileSystemURI.js",
+                    "id": "cordova-plugin-file.resolveLocalFileSystemURI",
+                    "merges": [
+                        "window"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/ios/FileSystem.js",
+                    "id": "cordova-plugin-file.iosFileSystem",
+                    "merges": [
+                        "FileSystem"
+                    ]
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/fileSystems-roots.js",
+                    "id": "cordova-plugin-file.fileSystems-roots",
+                    "runs": true
+                }, {
+                    "file": "plugins/cordova-plugin-file/www/fileSystemPaths.js",
+                    "id": "cordova-plugin-file.fileSystemPaths",
+                    "merges": [
+                        "cordova"
+                    ],
+                    "runs": true
+                }
+            ];
 
             var arrGeo = [{
                 "file": "plugins/cordova-plugin-geolocation/www/Coordinates.js",
@@ -9447,14 +11839,23 @@
                 ]
             }];
 
-            var arrSqlliteStorage = [{
+            var arrSqlliteStorage = [
+                {
                 "file": "plugins/cordova-sqlite-storage/www/SQLitePlugin.js",
                 "id": "cordova-sqlite-storage.SQLitePlugin",
                 "clobbers": [
                     "SQLitePlugin"
                 ]
-            }];
+                }
+            ];
 
+            var arrDecimalKeyboard = [{
+                "file": "",
+                "id": "cordova-plugin-decimal-keyboard-wkwebview",
+                "clobbers": [
+                    "DecimalKeyboard"
+                ]
+            }];
             var arrKeyboardIOS = [{
                 "file": "",
                 "id": "ionic-plugin-keyboard.iOS",
@@ -9462,13 +11863,16 @@
                     "cordova.plugins.Keyboard"
                 ]
             }];
-            var arrKeyboardAndroid = [{
+            
+            var arrKeyboardAndroid = [
+                {
                 "file": "",
                 "id": "ionic-plugin-keyboard.Android",
                 "clobbers": [
                     "cordova.plugins.Keyboard"
                 ]
-            }];
+                }
+            ];
 
             var arrLocalNotification = [{
                 "file": "plugins/de.appplant.cordova.plugin.local-notification/www/local-notification.js",
@@ -9603,6 +12007,102 @@
                 ]
             }];
 
+            var arrContacts = [{
+                "id": "cordova-plugin-contacts.contacts",
+                "file": "plugins/cordova-plugin-contacts/www/contacts.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "navigator.contacts"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.Contact",
+                "file": "plugins/cordova-plugin-contacts/www/Contact.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "Contact"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.convertUtils",
+                "file": "plugins/cordova-plugin-contacts/www/convertUtils.js",
+                "pluginId": "cordova-plugin-contacts"
+            }, {
+                "id": "cordova-plugin-contacts.ContactAddress",
+                "file": "plugins/cordova-plugin-contacts/www/ContactAddress.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "ContactAddress"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.ContactError",
+                "file": "plugins/cordova-plugin-contacts/www/ContactError.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "ContactError"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.ContactField",
+                "file": "plugins/cordova-plugin-contacts/www/ContactField.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "ContactField"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.ContactFindOptions",
+                "file": "plugins/cordova-plugin-contacts/www/ContactFindOptions.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "ContactFindOptions"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.ContactName",
+                "file": "plugins/cordova-plugin-contacts/www/ContactName.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "ContactName"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.ContactOrganization",
+                "file": "plugins/cordova-plugin-contacts/www/ContactOrganization.js",
+                "pluginId": "cordova-plugin-contacts",
+                "clobbers": [
+                    "ContactOrganization"
+                ]
+            }, {
+                "id": "cordova-plugin-contacts.ContactFieldType",
+                "file": "plugins/cordova-plugin-contacts/www/ContactFieldType.js",
+                "pluginId": "cordova-plugin-contacts",
+                "merges": [
+                    ""
+                ]
+            }];
+
+            if (DronaHQ.onIos) {
+                var arrContactsiOS = [{
+                    "id": "cordova-plugin-contacts.contacts-ios",
+                    "file": "plugins/cordova-plugin-contacts/www/ios/contacts.js",
+                    "pluginId": "cordova-plugin-contacts",
+                    "merges": [
+                        "navigator.contacts"
+                    ]
+                }, {
+                    "id": "cordova-plugin-contacts.Contact-iOS",
+                    "file": "plugins/cordova-plugin-contacts/www/ios/Contact.js",
+                    "pluginId": "cordova-plugin-contacts",
+                    "merges": [
+                        "Contact"
+                    ]
+                }];
+            }
+
+            var arrSMS = [{
+                "id": "cordova-sms-plugin.Sms",
+                "file": "plugins/cordova-sms-plugin/www/sms.js",
+                "pluginId": "cordova-sms-plugin",
+                "clobbers": [
+                    "window.sms"
+                ]
+            }];
+
             var arrAdal = [{
                 "file": "plugins/cordova-plugin-ms-adal/www/utility.js",
                 "id": "cordova-plugin-ms-adal.utility",
@@ -9636,6 +12136,39 @@
                 ]
             }];
 
+            var arrMedia = [{
+                "id": "cordova-plugin-media.MediaError",
+                "file": "plugins/cordova-plugin-media/www/MediaError.js",
+                "pluginId": "cordova-plugin-media",
+                "clobbers": [
+                    "window.MediaError"
+                ]
+            },
+            {
+                "id": "cordova-plugin-media.Media",
+                "file": "plugins/cordova-plugin-media/www/Media.js",
+                "pluginId": "cordova-plugin-media",
+                "clobbers": [
+                    "window.Media"
+                ]
+            }];
+
+            var arrGlobalization = [{
+                "id": "cordova-plugin-globalization.GlobalizationError",
+                "file": "plugins/cordova-plugin-globalization/www/GlobalizationError.js",
+                "pluginId": "cordova-plugin-globalization",
+                "clobbers": [
+                    "window.GlobalizationError"
+                ]
+            },
+            {
+                "id": "cordova-plugin-globalization.globalization",
+                "file": "plugins/cordova-plugin-globalization/www/globalization.js",
+                "pluginId": "cordova-plugin-globalization",
+                "clobbers": [
+                    "navigator.globalization"
+                ]
+            }];
 
             var arrPluginList = [];
             var objPluginMeta = {
@@ -9683,6 +12216,12 @@
                 arrPluginList = arrPluginList.concat(arrSqlliteStorage);
                 objPluginMeta["cordova-sqlite-storage"] = "0.8.0";
             }
+            //Decimal Keyboard
+            if (DronaHQ.plugins.DecimalKeyboard) {
+                arrPluginList = arrPluginList.concat(arrDecimalKeyboard);
+                objPluginMeta["cordova-plugin-decimal-keyboard-wkwebview"] = "1.0.4";
+            }
+
             // Keyboard
             if (DronaHQ.plugins.keyboard) {
                 if (DronaHQ.onIos) {
@@ -9733,8 +12272,34 @@
             // SSL Certificate Checker
             arrPluginList = arrPluginList.concat(arrSSLCertChecker);
 
+            // Contacts
+            arrPluginList = arrPluginList.concat(arrContacts);
+            if (DronaHQ.onIos) {
+                arrPluginList = arrPluginList.concat(arrContactsiOS);
+            }
+
+            // SMS
+            arrPluginList = arrPluginList.concat(arrSMS);
+
             // ADAL
             arrPluginList = arrPluginList.concat(arrAdal);
+
+            // Cordova Media
+            if (DronaHQ.onIos || DronaHQ.onAndroid) {
+                arrPluginList = arrPluginList.concat(arrMedia)
+            }
+
+            // Globalization
+            arrPluginList = arrPluginList.concat(arrGlobalization);
+            
+            arrPluginList = arrPluginList.concat(arrTts);
+
+            // arrPluginList = arrPluginList.concat(arrNativeStorage);
+            
+            arrPluginList = arrPluginList.concat(arrfileOpener2);
+
+            //Speech to Text
+            arrPluginList = arrPluginList.concat(arrSTT);
 
             module.exports = arrPluginList;
             module.exports.metadata = objPluginMeta;
@@ -9742,7 +12307,6 @@
 
         // file: src/common/pluginloader.js
         define("cordova/pluginloader", function (require, exports, module) {
-
             var modulemapper = require('cordova/modulemapper');
             var urlutil = require('cordova/urlutil');
 
@@ -9855,14 +12419,10 @@
                     handlePluginsObject(pathPrefix, moduleList, callback);
                 }, callback);
             };
-
-
         });
 
         // file: src/common/urlutil.js
         define("cordova/urlutil", function (require, exports, module) {
-
-
             /**
              * For already absolute URLs, returns what is passed in.
              * For relative URLs, converts them to absolute ones.
@@ -9872,13 +12432,10 @@
                 anchorEl.href = url;
                 return anchorEl.href;
             };
-
-
         });
 
         // file: src/common/utils.js
         define("cordova/utils", function (require, exports, module) {
-
             var utils = exports;
 
             /**
@@ -10042,8 +12599,6 @@
                 }
                 return uuidpart;
             }
-
-
         });
 
         window.cordova = require('cordova');
@@ -10063,9 +12618,9 @@
          to you under the Apache License, Version 2.0 (the
          "License"); you may not use this file except in compliance
          with the License.  You may obtain a copy of the License at
-    
+
              http://www.apache.org/licenses/LICENSE-2.0
-    
+
          Unless required by applicable law or agreed to in writing,
          software distributed under the License is distributed on an
          "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -10078,7 +12633,6 @@
 
         // file: D:/Github/cordova-ios/cordova-js-src/exec.js
         define("cordova/exec", function (require, exports, module) {
-
             /**
              * Creates a gap bridge iframe used to notify the native code about queued
              * commands.
@@ -10374,20 +12928,16 @@
             };
 
             module.exports = iOSExec;
-
         });
 
         // file: D:/Github/cordova-ios/cordova-js-src/platform.js
         define("cordova/platform", function (require, exports, module) {
-
             module.exports = {
                 id: 'ios',
                 bootstrap: function () {
                     require('cordova/channel').onNativeReady.fire();
                 }
             };
-
-
         });
 
         _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
@@ -10404,9 +12954,9 @@
          to you under the Apache License, Version 2.0 (the
          "License"); you may not use this file except in compliance
          with the License.  You may obtain a copy of the License at
-    
+
              http://www.apache.org/licenses/LICENSE-2.0
-    
+
          Unless required by applicable law or agreed to in writing,
          software distributed under the License is distributed on an
          "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -10418,7 +12968,6 @@
 
         // file: src/android/android/nativeapiprovider.js
         define("cordova/android/nativeapiprovider", function (require, exports, module) {
-
             /**
              * Exports the ExposedJsApi.java object if available, otherwise exports the PromptBasedNativeApi.
              */
@@ -10438,12 +12987,10 @@
                     currentApi = value;
                 }
             };
-
         });
 
         // file: src/android/android/promptbasednativeapi.js
         define("cordova/android/promptbasednativeapi", function (require, exports, module) {
-
             /**
              * Implements the API of ExposedJsApi.java, but uses prompt() to communicate.
              * This is used pre-JellyBean, where addJavascriptInterface() is disabled.
@@ -10460,12 +13007,10 @@
                     return prompt(+fromOnlineEvent, 'gap_poll:' + bridgeSecret);
                 }
             };
-
         });
 
         // file: src/android/exec.js
         define("cordova/exec", function (require, exports, module) {
-
             /**
              * Execute a cordova command.  It is up to the native side whether this action
              * is synchronous or asynchronous.  The native side can return:
@@ -10729,12 +13274,10 @@
             }
 
             module.exports = androidExec;
-
         });
 
         // file: src/android/platform.js
         define("cordova/platform", function (require, exports, module) {
-
             module.exports = {
                 id: 'android',
                 bootstrap: function () {
@@ -10779,12 +13322,10 @@
                     });
                 }
             };
-
         });
 
         // file: src/android/plugin/android/app.js
         define("cordova/plugin/android/app", function (require, exports, module) {
-
             var exec = require('cordova/exec');
 
             module.exports = {
@@ -10871,7 +13412,6 @@
                     return exec(null, null, "App", "exitApp", []);
                 }
             };
-
         });
 
         _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
@@ -10888,9 +13428,9 @@
          to you under the Apache License, Version 2.0 (the
          "License"); you may not use this file except in compliance
          with the License.  You may obtain a copy of the License at
-    
+
              http://www.apache.org/licenses/LICENSE-2.0
-    
+
          Unless required by applicable law or agreed to in writing,
          software distributed under the License is distributed on an
          "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -10903,7 +13443,6 @@
 
         // file: src/windowsphone/exec.js
         define("cordova/exec", function (require, exports, module) {
-
             var cordova = require('cordova'),
                 base64 = require('cordova/base64');
 
@@ -10920,11 +13459,10 @@
              * @param {String} service      The name of the service to use
              * @param {String} action       Action to be run in cordova
              * @param {String[]} [args]     Zero or more arguments to pass to the method
-      
+
              */
 
             module.exports = function (success, fail, service, action, args) {
-
                 var callbackId = service + cordova.callbackId++;
                 if (typeof success == "function" || typeof fail == "function") {
                     cordova.callbacks[callbackId] = {
@@ -10956,13 +13494,10 @@
                     console.log("Exception calling native with command :: " + command + " :: exception=" + e);
                 }
             };
-
-
         });
 
         // file: src/windowsphone/platform.js
         define("cordova/platform", function (require, exports, module) {
-
             module.exports = {
                 id: 'windowsphone',
                 bootstrap: function () {
@@ -10976,7 +13511,6 @@
                     };
                 }
             };
-
         });
 
         _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
@@ -10993,9 +13527,9 @@
          to you under the Apache License, Version 2.0 (the
          "License"); you may not use this file except in compliance
          with the License.  You may obtain a copy of the License at
-    
+
              http://www.apache.org/licenses/LICENSE-2.0
-    
+
          Unless required by applicable law or agreed to in writing,
          software distributed under the License is distributed on an
          "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -11086,24 +13620,17 @@
         });
 
         define("cordova/platform", function (require, exports, module) {
-
             module.exports = {
                 id: 'win10',
                 bootstrap: function () {
-
                 }
             };
-
         });
 
         _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
     };
 
-    var _fnCordovaBrowserPlugin = function () {
-        //       
-    };
-
-    var _fnCordovaBrowser = function () {
+    var _fnCordovaElectron = function () {
         // Platform: browser
         // 3.6.3
         /*
@@ -11128,6 +13655,7 @@
         var CORDOVA_JS_BUILD_LABEL = '3.6.3';
 
         // file: D:/Github/cordova-browser/cordova-js-src/confighelper.js
+
         define("cordova/confighelper", function (require, exports, module) {
 
             var config;
@@ -11212,17 +13740,211 @@
             var cordova = require('cordova');
             var channel = require('cordova/channel');
 
+            //Our way of doing things is using window.postMessage
+            //There are 2 parts in any communication
+            //1. Listen
+            //2. Send
+
+
+            //Part 2: Send
+            function electronExec(success, fail, service, action, args) {
+                //Send to the parent side
+
+                // Register the callbacks and add the callbackId to the positional
+                // arguments if given.
+                var callbackId = service + cordova.callbackId++;
+                if (typeof success == "function" || typeof fail == "function") {
+                    cordova.callbacks[callbackId] = {
+                        success: success,
+                        fail: fail
+                    };
+                }
+
+                var destinationWindow = window.parent;
+                if (destinationWindow) {
+                    var objMessage = {
+                        service: service,
+                        action: action,
+                        callbackId: callbackId,
+                        args: args
+                    };
+                    if(DronaHQ.onElectron)
+                        destinationWindow.postMessage(objMessage, '*');
+                    else
+                        CordovaWebview.receiveMessage({ data: objMessage });
+                } else {
+                    console.log('DronaHQ Webapp missing?');
+                }
+            }
+
+            //1. Listen
+            var fnReceiveMessage = function (e) {
+                //TODO: make sure origin is in our whitelist
+                var msgData = e.data;
+                cordova.callbackFromNative(msgData.callbackId, msgData.success, msgData.status, msgData.payload, msgData.keepCallback);
+            };
+
+            electronExec.init = function () {
+                window.addEventListener("message", fnReceiveMessage, false);
+                channel.onNativeReady.fire();
+            };
+
+            module.exports = electronExec;
+        });
+
+        // file: src/browser/platform.js
+        define("cordova/platform", function (require, exports, module) {
+
+            module.exports = {
+                id: 'Electron',
+                cordovaVersion: '3.4.0',
+
+                bootstrap: function () {
+
+                    var modulemapper = require('cordova/modulemapper');
+                    var channel = require('cordova/channel');
+                    var exec = require('cordova/exec');
+
+                    exec.init();
+
+                    // FIXME is this the right place to clobber pause/resume? I am guessing not
+                    // FIXME pause/resume should be deprecated IN CORDOVA for pagevisiblity api
+                    document.addEventListener('webkitvisibilitychange', function () {
+                        if (document.webkitHidden) {
+                            channel.onPause.fire();
+                        } else {
+                            channel.onResume.fire();
+                        }
+                    }, false);
+                    // End of bootstrap
+                }
+            };
+        });
+
+        _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
+    };
+
+    var _fnCordovaBrowser = function () {
+        // Platform: browser
+        // 3.6.3
+        /*
+         Licensed to the Apache Software Foundation (ASF) under one
+         or more contributor license agreements.  See the NOTICE file
+         distributed with this work for additional information
+         regarding copyright ownership.  The ASF licenses this file
+         to you under the Apache License, Version 2.0 (the
+         "License"); you may not use this file except in compliance
+         with the License.  You may obtain a copy of the License at
+
+             http://www.apache.org/licenses/LICENSE-2.0
+
+         Unless required by applicable law or agreed to in writing,
+         software distributed under the License is distributed on an
+         "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+         KIND, either express or implied.  See the License for the
+         specific language governing permissions and limitations
+         under the License.
+        */
+
+        var CORDOVA_JS_BUILD_LABEL = '3.6.3';
+
+        // file: D:/Github/cordova-browser/cordova-js-src/confighelper.js
+        define("cordova/confighelper", function (require, exports, module) {
+            var config;
+
+            function Config(xhr) {
+                function loadPreferences(xhr) {
+                    var parser = new DOMParser();
+                    var doc = parser.parseFromString(xhr.responseText, "application/xml");
+
+                    var preferences = doc.getElementsByTagName("preference");
+                    return Array.prototype.slice.call(preferences);
+                }
+
+                this.xhr = xhr;
+                this.preferences = loadPreferences(this.xhr);
+            }
+
+            function readConfig(success, error) {
+                var xhr;
+
+                if (typeof config != 'undefined') {
+                    success(config);
+                }
+
+                function fail(msg) {
+                    console.error(msg);
+
+                    if (error) {
+                        error(msg);
+                    }
+                }
+
+                var xhrStatusChangeHandler = function () {
+                    if (xhr.readyState == 4) {
+                        if (xhr.status == 200 || xhr.status == 304 || xhr.status === 0 /* file:// */) {
+                            config = new Config(xhr);
+                            success(config);
+                        } else {
+                            fail('[Browser][cordova.js][xhrStatusChangeHandler] Could not XHR config.xml: ' + xhr.statusText);
+                        }
+                    }
+                };
+
+                if ("ActiveXObject" in window) {
+                    // Needed for XHR-ing via file:// protocol in IE
+                    xhr = new window.ActiveXObject("MSXML2.XMLHTTP");
+                    xhr.onreadystatechange = xhrStatusChangeHandler;
+                } else {
+                    xhr = new XMLHttpRequest();
+                    xhr.addEventListener("load", xhrStatusChangeHandler);
+                }
+
+                try {
+                    xhr.open("get", "config.xml", true);
+                    xhr.send();
+                } catch (e) {
+                    fail('[Browser][cordova.js][readConfig] Could not XHR config.xml: ' + JSON.stringify(e));
+                }
+            }
+
+            /**
+             * Reads a preference value from config.xml.
+             * Returns preference value or undefined if it does not exist.
+             * @param {String} preferenceName Preference name to read */
+            Config.prototype.getPreferenceValue = function getPreferenceValue(preferenceName) {
+                var preferenceItem = this.preferences && this.preferences.filter(function (item) {
+                    return item.attributes.name && item.attributes.name.value === preferenceName;
+                });
+
+                if (preferenceItem && preferenceItem[0] && preferenceItem[0].attributes && preferenceItem[0].attributes.value) {
+                    return preferenceItem[0].attributes.value.value;
+                }
+            };
+
+            exports.readConfig = readConfig;
+        });
+
+        // file: src/browser/exec.js
+        define("cordova/exec", function (require, exports, module) {
+            var cordova = require('cordova');
+            var channel = require('cordova/channel');
+
             var allowedSender = [
                 "https://app.dronahq.com",
+                "https://dev.app.dronahq.com",
+                "https://web.dronahq.com",
                 "http://dev.app.dronahq.com",
-                "http://192.168.2.106"
+                "http://web.dronahq.com",
+                "http://192.168.2.106",
+                "http://192.168.2.144",
+                "http://192.168.2.237"
             ];
 
             //Our way of doing things is using window.postMessage
             //There are 2 parts in any communication
             //1. Listen
             //2. Send
-
 
             //Part 2: Send
             function browserExec(success, fail, service, action, args) {
@@ -11255,11 +13977,8 @@
             //1. Listen
             var fnReceiveMessage = function (e) {
                 //TODO: make sure origin is in our whitelist
-                var originAllowed = allowedSender.indexOf(e.origin);
-                if (originAllowed > -1) {
-                    var msgData = e.data;
-                    cordova.callbackFromNative(msgData.callbackId, msgData.success, msgData.status, msgData.payload, msgData.keepCallback);
-                }
+                var msgData = e.data;
+                cordova.callbackFromNative(msgData.callbackId, msgData.success, msgData.status, msgData.payload, msgData.keepCallback);
             };
 
             browserExec.init = function () {
@@ -11272,13 +13991,11 @@
 
         // file: src/browser/platform.js
         define("cordova/platform", function (require, exports, module) {
-
             module.exports = {
                 id: 'browser',
                 cordovaVersion: '3.4.0',
 
                 bootstrap: function () {
-
                     var modulemapper = require('cordova/modulemapper');
                     var channel = require('cordova/channel');
                     var exec = require('cordova/exec');
@@ -11286,26 +14003,25 @@
                     exec.init();
 
                     // FIXME is this the right place to clobber pause/resume? I am guessing not
-                    // FIXME pause/resume should be deprecated IN CORDOVA for pagevisiblity api
-                    document.addEventListener('webkitvisibilitychange', function () {
+                    // FIXME pause/resume should be deprecated IN CORDOVA for pagevisiblity api webkitvisibilitychange
+
+                    //CL#3
+                    document.addEventListener('resume', function () {
                         if (document.webkitHidden) {
                             channel.onPause.fire();
                         } else {
                             channel.onResume.fire();
                         }
                     }, false);
-
+                    //End of CL#3
                     // End of bootstrap
                 }
             };
-
         });
-
-
 
         _fnCordovaCommon(CORDOVA_JS_BUILD_LABEL);
 
-        _fnCordovaBrowserPlugin();
+        //_fnCordovaBrowserPlugin();
     };
 
     /**
@@ -11334,6 +14050,18 @@
         } else if (DronaHQ.onWindowsPhone) {
             //Initialize the cordova-wp8
             _fnCordovaWP8();
+        } else if (DronaHQ.onElectron) {
+            // DronaHQ.onWeb = true;
+            //Disabled plugins
+            // DronaHQ.plugins.camera = true;
+            // DronaHQ.plugins.device = true;
+            // DronaHQ.plugins.inappbrowser = true;
+            // DronaHQ.plugins.dronahq = true;
+            // DronaHQ.plugins.file = false;
+            // DronaHQ.plugins.filetransfer = false;
+            // DronaHQ.plugins.geo = false;
+            _fnCordovaElectron();
+
         } else {
             //On browser most probably
             //The app should be running inside our iFrame
